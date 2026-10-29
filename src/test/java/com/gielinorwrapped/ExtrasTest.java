@@ -408,8 +408,8 @@ public class ExtrasTest
 	{
 		BufferedImage surface = MoreScenes.WorldMap.surface();
 		assertNotNull(surface);
-		assertEquals(3072, surface.getWidth());
-		assertEquals(1792, surface.getHeight());
+		assertEquals(1536, surface.getWidth());
+		assertEquals(896, surface.getHeight());
 
 		Recap r = richRecap();
 		Config c = new Config();

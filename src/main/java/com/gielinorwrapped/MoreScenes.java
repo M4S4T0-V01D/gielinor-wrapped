@@ -95,9 +95,14 @@ final class MoreScenes
 		/** The shown part of the window: the picture's last column and top row are empty. */
 		static final int VIEW_MAX_X = 61;
 		static final int VIEW_MAX_Y = 64;
-		/** The bundled map covers the window above at this many pixels per region (one per game tile). */
-		static final int MAP_SCALE = 64;
-		private static final String MAP_FILE = "world-map.jpg";
+		/** The bundled map covers the window above at this many pixels per region (one per two game tiles). */
+		static final int MAP_SCALE = 32;
+		/**
+		 * The map is bundled as a grid of tiles, {@code world-map/<row>-<col>.jpg}, to keep each picture small;
+		 * they are put back together on first use.
+		 */
+		private static final int TILE_ROWS = 4;
+		private static final int TILE_COLS = 3;
 		private static SoftReference<BufferedImage> surface;
 		private BufferedImage backdrop;
 
@@ -245,17 +250,38 @@ final class MoreScenes
 			{
 				return img;
 			}
-			try (InputStream in = MoreScenes.class.getResourceAsStream(MAP_FILE))
+			int width = (MAX_X - MIN_X + 1) * MAP_SCALE;
+			int height = (MAX_Y - MIN_Y + 1) * MAP_SCALE;
+			int tileW = width / TILE_COLS;
+			int tileH = height / TILE_ROWS;
+			img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+			Graphics2D g = img.createGraphics();
+			try
 			{
-				img = in == null ? null : ImageIO.read(in);
+				for (int row = 0; row < TILE_ROWS; row++)
+				{
+					for (int col = 0; col < TILE_COLS; col++)
+					{
+						BufferedImage tile;
+						try (InputStream in = MoreScenes.class.getResourceAsStream("world-map/" + row + "-" + col + ".jpg"))
+						{
+							tile = in == null ? null : ImageIO.read(in);
+						}
+						if (tile == null || tile.getWidth() != tileW || tile.getHeight() != tileH)
+						{
+							return null;
+						}
+						g.drawImage(tile, col * tileW, row * tileH, null);
+					}
+				}
 			}
 			catch (IOException e)
 			{
-				img = null;
-			}
-			if (img == null || img.getWidth() != (MAX_X - MIN_X + 1) * MAP_SCALE || img.getHeight() != (MAX_Y - MIN_Y + 1) * MAP_SCALE)
-			{
 				return null;
+			}
+			finally
+			{
+				g.dispose();
 			}
 			surface = new SoftReference<>(img);
 			return img;
