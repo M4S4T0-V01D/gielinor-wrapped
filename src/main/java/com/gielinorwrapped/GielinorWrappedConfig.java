@@ -467,7 +467,7 @@ public interface GielinorWrappedConfig extends Config
 	@Range(min = 5, max = 30)
 	default int clipFps()
 	{
-		return 15;
+		return 12;
 	}
 
 	@ConfigItem(keyName = "clipBefore", name = "Seconds before", description = "How much is kept from before the moment", section = clips, position = 2)

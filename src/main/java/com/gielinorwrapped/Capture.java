@@ -59,6 +59,8 @@ class Capture
 	};
 	/** A clip that keeps being extended by new moments is cut off at this length. */
 	private static final long MAX_CLIP_MS = 30_000;
+	/** Extra footage kept past what a clip needs, for timing jitter. */
+	private static final long KEEP_SLACK_MS = 2_000;
 	/** Size of the blocks chat is pixelated into, in clip pixels. */
 	private static final int BLUR_BLOCK = 10;
 	/** Largest share of the frame one hidden chat area may cover. */
@@ -858,7 +860,14 @@ class Capture
 			copy(image, buffer);
 			List<Rectangle> hidden = hiddenAreas(image);
 			long time = System.currentTimeMillis();
-			long keep = (config.clipBefore() + config.clipAfter()) * 1000L + MAX_CLIP_MS;
+			// Keep enough for a new moment's lead-in, plus everything a clip still being recorded needs.
+			long keepFrom = time - config.clipBefore() * 1000L - KEEP_SLACK_MS;
+			Pending p = pending;
+			if (p != null && time <= p.to + KEEP_SLACK_MS * 5)
+			{
+				keepFrom = Math.min(keepFrom, p.from);
+			}
+			long cutoff = keepFrom;
 			try
 			{
 				w.execute(() ->
@@ -869,7 +878,7 @@ class Capture
 						synchronized (frames)
 						{
 							frames.addLast(frame);
-							while (!frames.isEmpty() && frames.peekFirst().time < time - keep)
+							while (!frames.isEmpty() && frames.peekFirst().time < cutoff)
 							{
 								frames.pollFirst();
 							}
@@ -1045,21 +1054,18 @@ class Capture
 	{
 		int width = Math.min(full.getWidth(), config.clipWidth());
 		double scale = width / (double) full.getWidth();
-		BufferedImage out = full;
-		if (width != full.getWidth())
+		int height = width == full.getWidth() ? full.getHeight() : Math.max(2, (int) Math.round(full.getHeight() * scale));
+		// Byte BGR rather than int RGB: the JPEG encoder takes it about a third faster.
+		if (scaled == null || scaled.getWidth() != width || scaled.getHeight() != height)
 		{
-			int height = Math.max(2, (int) Math.round(full.getHeight() * scale));
-			if (scaled == null || scaled.getWidth() != width || scaled.getHeight() != height)
-			{
-				scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-			}
-			out = scaled;
-			Graphics2D g = out.createGraphics();
-			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-			g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-			g.drawImage(full, 0, 0, width, height, null);
-			g.dispose();
+			scaled = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		}
+		BufferedImage out = scaled;
+		Graphics2D g = out.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+		g.drawImage(full, 0, 0, width, height, null);
+		g.dispose();
 		for (Rectangle r : hidden)
 		{
 			pixelate(out, new Rectangle((int) (r.x * scale), (int) (r.y * scale), (int) Math.ceil(r.width * scale), (int) Math.ceil(r.height * scale)));
