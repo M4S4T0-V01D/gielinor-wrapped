@@ -99,7 +99,7 @@ A recap's video gets a **Deaths** scene that plays your Death Recap cards one af
 
 Videos can include these scenes, each with an on/off switch under **Extra scenes** in the settings:
 
-- **Where you played:** the OSRS world map, cropped to where you went, with a glow where you spent your time and your top three places
+- **Where you played:** the whole OSRS world map, Kourend and Varlamore included, with a glow where you spent your time and your top three places
 - **Graphs:** bar charts of XP, time played and loot by day (recaps up to a month), week (up to six months) or month, or by hour for a one-day recap
 - **Vs last time:** this period next to the one before it, also as the **Vs last time** card layout
 - **Goal pace:** how long your next big goal takes at this rate, e.g. "99 Mining in 41 days"
