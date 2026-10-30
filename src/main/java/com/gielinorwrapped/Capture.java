@@ -365,7 +365,7 @@ class Capture
 		}
 		lastTimelapse = now;
 		LocalDate date = LocalDate.now();
-		drawManager.requestNextFrameListener(image ->
+		onNextFrame(image ->
 		{
 			BufferedImage copy = copy(image, null);
 			List<Rectangle> hidden = hiddenAreas(image);
@@ -559,7 +559,7 @@ class Capture
 			return;
 		}
 		take.lastFrame = now;
-		drawManager.requestNextFrameListener(image ->
+		onNextFrame(image ->
 		{
 			Player p = client.getLocalPlayer();
 			if (p == null || emoteTake != take)
@@ -684,7 +684,7 @@ class Capture
 	private void cutNpc(long account, NPC npc, String name, long now)
 	{
 		npcsCut.put(name, now + NPC_RETRY_MS);
-		drawManager.requestNextFrameListener(image ->
+		onNextFrame(image ->
 		{
 			Shape hull = npc.getConvexHull();
 			if (hull == null)
@@ -848,7 +848,7 @@ class Capture
 		}
 		lastRequest = now;
 		requestPending = true;
-		drawManager.requestNextFrameListener(image ->
+		onNextFrame(image ->
 		{
 			requestPending = false;
 			ScheduledExecutorService w = worker;
@@ -857,7 +857,15 @@ class Capture
 			{
 				return;
 			}
-			copy(image, buffer);
+			try
+			{
+				copy(image, buffer);
+			}
+			catch (OutOfMemoryError e)
+			{
+				spare.offer(buffer);
+				throw e;
+			}
 			List<Rectangle> hidden = hiddenAreas(image);
 			long time = System.currentTimeMillis();
 			// Keep enough for a new moment's lead-in, plus everything a clip still being recorded needs.
@@ -884,7 +892,7 @@ class Capture
 							}
 						}
 					}
-					catch (Exception e)
+					catch (Exception | OutOfMemoryError e)
 					{
 						log.debug("Unable to compress clip frame", e);
 					}
@@ -907,7 +915,7 @@ class Capture
 	 */
 	void shot(boolean gameView, ExecutorService executor, Consumer<BufferedImage> done)
 	{
-		drawManager.requestNextFrameListener(image ->
+		onNextFrame(image ->
 		{
 			BufferedImage copy = copy(image, null);
 			List<Rectangle> hidden = hiddenAreas(image);
@@ -1120,6 +1128,25 @@ class Capture
 		image.setRGB(r.x, r.y, r.width, r.height, px, 0, r.width);
 	}
 
+	/**
+	 * Runs {@code listener} on the next frame. Copying a full frame runs on the client thread, so running out
+	 * of memory there would stop the client; skip that frame instead.
+	 */
+	private void onNextFrame(Consumer<Image> listener)
+	{
+		drawManager.requestNextFrameListener(image ->
+		{
+			try
+			{
+				listener.accept(image);
+			}
+			catch (OutOfMemoryError e)
+			{
+				log.warn("Not enough memory to copy a frame; skipped it");
+			}
+		});
+	}
+
 	private BufferedImage buffer(int width, int height)
 	{
 		BufferedImage b;
@@ -1136,7 +1163,15 @@ class Capture
 			buffers.decrementAndGet();
 			return null;
 		}
-		return new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+		try
+		{
+			return new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+		}
+		catch (OutOfMemoryError e)
+		{
+			buffers.decrementAndGet();
+			throw e;
+		}
 	}
 
 	private static BufferedImage copy(Image image, BufferedImage into)
