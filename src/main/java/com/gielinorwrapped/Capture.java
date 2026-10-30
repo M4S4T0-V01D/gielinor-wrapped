@@ -23,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -77,7 +78,7 @@ class Capture
 	/** The frame scaled to the clip width, reused for each frame. Frame thread only. */
 	private BufferedImage scaled;
 
-	private ScheduledExecutorService worker;
+	private ScheduledThreadPoolExecutor worker;
 	private ExecutorService writer;
 	private long lastRequest;
 	private boolean requestPending;
@@ -183,12 +184,13 @@ class Capture
 
 	void start()
 	{
-		worker = Executors.newSingleThreadScheduledExecutor(r ->
+		worker = new ScheduledThreadPoolExecutor(1, r ->
 		{
 			Thread t = new Thread(r, "gielinor-wrapped-frames");
 			t.setDaemon(true);
 			return t;
 		});
+		worker.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
 		writer = Executors.newSingleThreadExecutor(r ->
 		{
 			Thread t = new Thread(r, "gielinor-wrapped-media");
@@ -213,7 +215,9 @@ class Capture
 		emoteTake = null;
 		if (worker != null)
 		{
-			worker.shutdownNow();
+			// Drop queued frame work; a task already running finishes.
+			worker.getQueue().clear();
+			worker.shutdown();
 			worker = null;
 		}
 		if (writer != null)
@@ -221,7 +225,7 @@ class Capture
 			writer.shutdown();
 			if (!writer.awaitTermination(5, TimeUnit.SECONDS))
 			{
-				writer.shutdownNow();
+				log.warn("Gielinor Wrapped is still writing a clip; it finishes in the background");
 			}
 			writer = null;
 		}

@@ -140,6 +140,8 @@ final class Recaps
 	private final GielinorWrappedConfig config;
 	private final ExecutorService render;
 	private final List<Job> jobs = new CopyOnWriteArrayList<>();
+	/** Set by {@link #close()}; queued tasks then skip their work. */
+	private volatile boolean closed;
 	private final Consumer<Job> listener;
 	private final Art art;
 	private final Shots shots;
@@ -263,7 +265,7 @@ final class Recaps
 			{
 				render.execute(() ->
 				{
-					if (job.status == Status.DONE)
+					if (!closed && job.status == Status.DONE)
 					{
 						ready.accept("Your " + p.label().toLowerCase() + " Gielinor Wrapped is ready: " + p.describe());
 					}
@@ -340,6 +342,10 @@ final class Recaps
 
 	private void run(Job job, String player)
 	{
+		if (closed)
+		{
+			return;
+		}
 		if (job.cancelled)
 		{
 			update(job, Status.CANCELLED, null);
@@ -415,7 +421,7 @@ final class Recaps
 					{
 						job.progress = p;
 						listener.accept(job);
-					}, () -> job.cancelled || Thread.currentThread().isInterrupted());
+					}, () -> job.cancelled);
 				}
 				finally
 				{
@@ -826,11 +832,12 @@ final class Recaps
 	/** Stops rendering; a video in progress is abandoned and its partial file removed. */
 	void close() throws InterruptedException
 	{
+		closed = true;
 		for (Job j : jobs)
 		{
 			j.cancel();
 		}
-		render.shutdownNow();
+		render.shutdown();
 		if (!render.awaitTermination(10, TimeUnit.SECONDS))
 		{
 			log.warn("Gielinor Wrapped rendering did not stop in time");

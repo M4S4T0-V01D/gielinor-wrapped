@@ -514,12 +514,7 @@ public class GielinorWrappedPlugin extends Plugin
 			{
 				return img.get(2, TimeUnit.SECONDS);
 			}
-			catch (InterruptedException e)
-			{
-				Thread.currentThread().interrupt();
-				return null;
-			}
-			catch (ExecutionException | TimeoutException e)
+			catch (InterruptedException | ExecutionException | TimeoutException e)
 			{
 				return null;
 			}
