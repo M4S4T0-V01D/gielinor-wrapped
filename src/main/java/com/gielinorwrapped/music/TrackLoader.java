@@ -85,7 +85,7 @@ public final class TrackLoader
 	public static byte[] toMidi(byte[] b)
 	{
 		In var1 = new In(b);
-		// Some of the names are from https://www.rune-server.ee/runescape-development/rs-503-client-server/snippets/311669-rs-music-file-structure-conversion.html
+		// Converts the cache's music track format to a standard MIDI file
 		var1.setOffset(var1.getLength() - 3);
 		int tracks = var1.readUnsignedByte();
 		int division = var1.readUnsignedShort();
