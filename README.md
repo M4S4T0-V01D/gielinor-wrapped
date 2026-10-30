@@ -1,8 +1,65 @@
-# Gielinor Wrapped
+<p align="center">
+  <img src="icon.png" width="96" alt="Gielinor Wrapped icon">
+</p>
 
-Your Old School RuneScape play, wrapped up: daily, weekly, monthly, yearly or any range you pick. Each recap is a **share card** (a PNG ready for Discord, Reddit or X) and, if you like, a **recap video** (MP4 or GIF) with captions, built from short clips of your own gameplay.
+<h1 align="center">Gielinor Wrapped</h1>
 
-Everything is made on your computer. Nothing is uploaded anywhere.
+<p align="center">
+  <b>Your Old School RuneScape play, wrapped up.</b><br>
+  Daily, weekly, monthly, yearly or any range you pick: a share card ready for Discord, Reddit or X,<br>
+  and a captioned recap video built from clips of your own gameplay, with game music under it.
+</p>
+
+<p align="center">
+  <img src="screenshots/share-card.png" width="800" alt="Weekly share card: 152,785 XP gained, 10h 1m played, 4 levels, 235K gp loot, 250 kills, top skill Magic, persona The Boss Hunter, Ironman badge">
+  <br><sub>A real weekly share card, copied to the clipboard with one click.</sub>
+</p>
+
+<p align="center">
+  <img src="screenshots/recap-preview.gif" width="800" alt="Highlights of a weekly recap video: splash title, XP scene, a boss kill clip, the world map heat glow, the Deaths scene, gameplay, goal pace and the outro">
+  <br><sub>Highlights from a weekly recap video. <a href="screenshots/recap-week.mp4">Watch the whole 58-second video (MP4, with music)</a>.</sub>
+</p>
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="screenshots/scene-title.jpg" width="260" alt="Splash title over a recap shot"></td>
+    <td align="center"><img src="screenshots/scene-highlight.jpg" width="260" alt="Highlight clip of a first Bryophyta kill with a caption"></td>
+    <td align="center"><img src="screenshots/scene-graphs.jpg" width="260" alt="Time played scene with a bar chart by hour"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Splash title over your cover shot</sub></td>
+    <td align="center"><sub>Highlight clips, saved as they happen</sub></td>
+    <td align="center"><sub>Graphs</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/scene-map.jpg" width="260" alt="World map with a glow where you played and your top three places"></td>
+    <td align="center"><img src="screenshots/scene-deaths.jpg" width="260" alt="Deaths scene showing a Death Recap card for a Green dragon"></td>
+    <td align="center"><img src="screenshots/scene-goal.jpg" width="260" alt="Goal pace scene: 80 Magic in 36 days"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Where you played</sub></td>
+    <td align="center"><sub>Deaths, from <a href="https://github.com/M4S4T0-V01D/death-recap">Death Recap</a></sub></td>
+    <td align="center"><sub>Goal pace</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  Everything is made on your computer. The plugin makes no network requests and uploads nothing.<br>
+  Video and music are encoded in plain Java, with no extra downloads.
+</p>
+
+---
+
+## Contents
+
+- [What gets tracked](#what-gets-tracked)
+- [The side panel](#the-side-panel)
+- [Making a recap](#making-a-recap)
+- [Death log and Death Recap](#death-log)
+- [Extra scenes](#extra-scenes)
+- [Customising](#customising)
+- [Where files are kept](#where-files-are-kept)
+- [Install](#install)
 
 ## What gets tracked
 
@@ -20,6 +77,8 @@ Clips are scaled down and stored in the plugin's data folder. When they go over 
 
 ## The side panel
 
+<img src="screenshots/panel.png" width="246" align="right" alt="The Gielinor Wrapped side panel, Record tab: recording, snapshots, recordings, stickers and recap shots">
+
 Open the gift icon in the sidebar. The panel has four tabs:
 
 - **Record:** start and stop a footage recording, take a screenshot, capture your emote, add stickers, and see your shots and recordings
@@ -35,6 +94,8 @@ Press **● Start recording** (or the **Start/stop hotkey**), play, then press *
 
 Press **Capture emote**, then do any emote in game. The plugin cuts your character out of the next few seconds of the game view. With **Show my emote** on, it dances on the title and outro. You do the emote yourself; the plugin only records it.
 
+<br clear="right">
+
 ### Green screen
 
 Recorded yourself in front of a green or blue screen? Turn on **Green screen (chroma key)** and pick the **Key colour**. **Key tolerance**, **Key softness** and **Remove colour spill** tune the cut-out. **Keyed footage goes** puts the cut-out of you over your other recordings or over the stat scenes.
@@ -47,6 +108,8 @@ Stickers are pictures dropped into the video scenes, with an optional **Wobble**
 - **Game icon stickers:** skill, prayer and other game icons on the stat scenes
 - **Ironman badge:** on Ironman, Ultimate, Hardcore and Group Ironman accounts, your chat helmet goes on the title and outro as a sticker. It also sits next to your account type in the corner of share cards, and before your name (and your friend's) in friend duels. The plugin reads the account type each time you log in. It keeps the latest one, so a Hardcore who dies shows the plain Ironman helmet from then on.
 - **My pictures:** your own PNG, JPG or GIF files (animated GIFs keep playing). Use **Add stickers…** in the panel, or **Copy folder path** and drop files into that folder.
+
+Stickers are placed automatically, or you can place them yourself with **Sticker board…** in the panel. Pick a scene and click a sticker to add it. Drag to move it, scroll to resize it, Shift+scroll to turn it, and right-click or press Delete to remove it. Stickers you place replace the automatic ones on that scene. Turn off **Auto stickers on scenes I leave empty** to keep the other scenes clear.
 
 ### Music
 
@@ -74,6 +137,17 @@ Under **Your recaps** you can:
 
 ### Recap shots
 
+<table align="center">
+  <tr>
+    <td align="center"><img src="screenshots/shot-cover.jpg" width="380" alt="A recap shot taken in game, set as the cover"></td>
+    <td align="center"><img src="screenshots/scene-title.jpg" width="380" alt="The same shot as the backdrop of the splash title"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>A shot set up in game, with the chat blurred…</sub></td>
+    <td align="center"><sub>…becomes the backdrop of the splash title</sub></td>
+  </tr>
+</table>
+
 Want a say in how your recap looks? Set up a shot in game, such as your character posing at a boss lair or a fresh outfit, then press **Take screenshot** in the panel. You can also bind **Recap shots → Shot hotkey** in the settings. Under **Recap shots** in the panel, give each shot a role:
 
 - **Cover:** the backdrop of the splash title and the Splash card
@@ -86,7 +160,7 @@ A recap uses the shots taken from the start of its range until it is made, so yo
 
 Every death is logged for good, and the newest ones are listed under **Death log** in the **Make** tab, along with your total deaths and gp lost.
 
-If you also run the **Death Recap** plugin, it shares each death with Gielinor Wrapped: who killed you, where, the damage taken, the gp lost, its death card, its screenshot and its replay. Turn this on or off with Death Recap's **Share with Gielinor Wrapped** setting, which is on by default. Deaths Death Recap saved before you installed Gielinor Wrapped are sent across the next time you log in. Plugins can't read each other's files, so the two plugins pass deaths to each other in RuneLite instead. Nothing leaves your computer.
+If you also run the **[Death Recap](https://github.com/M4S4T0-V01D/death-recap)** plugin (on the Plugin Hub), it shares each death with Gielinor Wrapped: who killed you, where, the damage taken, the gp lost, its death card, its screenshot and its replay. Turn this on or off with Death Recap's **Share with Gielinor Wrapped** setting, which is on by default. Deaths Death Recap saved before you installed Gielinor Wrapped are sent across the next time you log in. Plugins can't read each other's files, so the two plugins pass deaths to each other in RuneLite instead. Nothing leaves your computer.
 
 A recap's video gets a **Deaths** scene that plays your Death Recap cards one after another over the death screenshot, with a caption under each. A death that wasn't clipped uses Death Recap's replay as its highlight clip instead. These options are in the **Death log** settings:
 
@@ -179,13 +253,30 @@ Everything lives in `.runelite/plugin-data/gielinor-wrapped/accounts/<account>/`
 
 Delete a folder to forget it.
 
-## Building
+## Install
+
+Gielinor Wrapped is waiting for review on the RuneLite Plugin Hub. Once it's accepted, open the **Plugin Hub** in RuneLite's configuration panel, search for **Gielinor Wrapped** and press **Install**.
+
+To try it before then, build it from source:
 
 ```
 ./gradlew test   # unit tests; the video tests use ffprobe if installed
 ./gradlew run    # starts RuneLite in developer mode with the plugin loaded
 ```
 
+Needs Java 11 or newer. There are no dependencies beyond RuneLite itself.
+
+## Your data
+
+- Nothing is sent anywhere. The plugin makes no network requests, and your recaps leave your computer only if you share them.
+- The chatbox and private messages are blurred in clips, recordings and shots (**Hide chat in clips**, on by default).
+- The plugin only watches and records. It never moves your character, clicks or types anything.
+- Friend files hold totals only, and **Hide my name** swaps your name for "Adventurer".
+
 ## Credits
 
 The world map in the "Where you played" scene is stitched from the map tiles rendered from the game cache by [mejrs/layers_osrs](https://github.com/mejrs/layers_osrs), which are also used by the OSRS Wiki's map. Old School RuneScape and its map are © Jagex Ltd.
+
+## License
+
+BSD 2-Clause. See [LICENSE](LICENSE).
