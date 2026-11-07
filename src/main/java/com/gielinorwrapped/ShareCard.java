@@ -9,8 +9,16 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
@@ -85,6 +93,11 @@ final class ShareCard
 		{
 			layout = GielinorWrappedConfig.CardLayout.SUMMARY;
 		}
+		if (layout == GielinorWrappedConfig.CardLayout.TROPHIES && trophies(r, tok, null).size() < MIN_TROPHIES
+			|| layout == GielinorWrappedConfig.CardLayout.CALENDAR && !calendarFits(r))
+		{
+			layout = GielinorWrappedConfig.CardLayout.SUMMARY;
+		}
 
 		Composer.Media art = media != null && config.icons() ? media : null;
 		String share = Composer.CustomCaptions.parse(config.customCaptions()).share;
@@ -122,6 +135,14 @@ final class ShareCard
 			case VERSUS_LAST:
 				header(g, theme, r, config, tok, w, m, u);
 				versusLast(g, theme, r, new Rectangle(m, m + u * 22 / 100, w - 2 * m, h - m * 2 - u * 22 / 100 - u / 12), u);
+				break;
+			case TROPHIES:
+				header(g, theme, r, config, tok, w, m, u);
+				tiles(g, theme, trophies(r, tok, art), new Rectangle(m, m + u * 22 / 100, w - 2 * m, h - m * 2 - u * 22 / 100 - u / 12), u);
+				break;
+			case CALENDAR:
+				header(g, theme, r, config, tok, w, m, u);
+				calendar(g, theme, r, config.weekStart(), new Rectangle(m, m + u * 22 / 100, w - 2 * m, h - m * 2 - u * 22 / 100 - u / 12), u);
 				break;
 			default:
 				header(g, theme, r, config, tok, w, m, u);
@@ -256,6 +277,134 @@ final class ShareCard
 			t.add(new Tile(r.areas.get(0).name, "favourite spot"));
 		}
 		return t.size() > 6 ? t.subList(0, 6) : t;
+	}
+
+	/** The trophy cabinet needs at least this many tiles; otherwise the summary is drawn. */
+	static final int MIN_TROPHIES = 3;
+
+	/** Personal bests and rare finds for the trophy cabinet, at most six. */
+	private static List<Tile> trophies(Recap r, Map<String, String> tok, Composer.Media art)
+	{
+		List<Tile> t = new ArrayList<>();
+		DayRecord total = r.total;
+		if (total.bestHourXp > 0)
+		{
+			t.add(new Tile(Recap.number(total.bestHourXp), "XP in one hour"));
+		}
+		if (!r.pets.isEmpty())
+		{
+			Moment pet = r.pets.get(r.pets.size() - 1);
+			String name = pet.detail != null && !pet.detail.isEmpty() ? pet.detail : "New pet";
+			t.add(new Tile(r.pets.size() == 1 ? name : r.pets.size() + " pets", r.pets.size() == 1 ? "pet" : "latest: " + name)
+				.icon(art == null || pet.itemId <= 0 ? null : art.item(pet.itemId)));
+		}
+		if (!r.drops.isEmpty() && r.drops.get(0).value >= Composer.BIG_DROP)
+		{
+			DayRecord.Drop d = r.drops.get(0);
+			t.add(new Tile(Recap.gp(d.value), d.name).icon(art == null || d.itemId <= 0 ? null : art.item(d.itemId)));
+		}
+		if (total.longestSession >= Composer.MIN_SESSION)
+		{
+			t.add(new Tile(Recap.duration(total.longestSession), "longest session"));
+		}
+		if (r.totalClues > 0)
+		{
+			Recap.Entry best = r.clueTiers.isEmpty() ? null : r.clueTiers.get(r.clueTiers.size() - 1);
+			int casket = best == null ? 0 : Composer.casket(best.name);
+			t.add(new Tile(tok.get("clues"), best == null ? "clues" : "clues · " + best.name + " best")
+				.icon(art == null || casket == 0 ? null : art.item(casket)));
+		}
+		if (!r.quests.isEmpty())
+		{
+			t.add(new Tile(Integer.toString(r.quests.size()), r.quests.size() == 1 ? "quest" : "quests"));
+		}
+		if (r.period.days() > 1 && r.bestXpDay != null && r.bestXpDayXp > 0)
+		{
+			t.add(new Tile(Recap.number(r.bestXpDayXp), "best day's XP"));
+		}
+		if (r.longestStreak > 1)
+		{
+			t.add(new Tile(Integer.toString(r.longestStreak), "day streak"));
+		}
+		return t.size() > 6 ? t.subList(0, 6) : t;
+	}
+
+	/** One cell per day needs daily data and at least a week of it. */
+	static boolean calendarFits(Recap r)
+	{
+		return r.step == Recap.Step.DAY && !r.series.isEmpty() && r.period.days() >= 7;
+	}
+
+	/** A month-style grid of the period's days, shaded by time played, with the streak and busiest day below. */
+	private static void calendar(Graphics2D g, Theme theme, Recap r, DayOfWeek weekStart, Rectangle area, int u)
+	{
+		Map<LocalDate, Recap.Bucket> byDay = new HashMap<>();
+		long most = 1;
+		for (Recap.Bucket b : r.series)
+		{
+			byDay.put(b.start, b);
+			most = Math.max(most, b.seconds);
+		}
+		LocalDate first = r.period.from.with(TemporalAdjusters.previousOrSame(weekStart));
+		int weeks = (int) ((ChronoUnit.DAYS.between(first, r.period.to) / 7) + 1);
+		int footH = u / 9;
+		int headH = u / 20;
+		int gap = Math.max(2, u / 120);
+		int cell = Math.min((area.width - gap * 6) / 7, (area.height - footH - headH - gap * (weeks - 1)) / weeks);
+		int gridW = cell * 7 + gap * 6;
+		int left = area.x + (area.width - gridW) / 2;
+		int top = area.y + (area.height - footH - headH - (cell * weeks + gap * (weeks - 1))) / 2 + headH;
+		Font head = theme.bold(u * 0.024f);
+		for (int c = 0; c < 7; c++)
+		{
+			String d = weekStart.plus(c).getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
+			Captions.centered(g, d.toUpperCase(Locale.ROOT), left + c * (cell + gap) + cell / 2, top - headH / 3, head, theme.muted, cell);
+		}
+		Font num = theme.bold(cell * 0.24f);
+		Font hrs = theme.regular(cell * 0.2f);
+		int arc = cell / 5;
+		for (int i = 0; i < weeks * 7; i++)
+		{
+			LocalDate day = first.plusDays(i);
+			int x = left + (i % 7) * (cell + gap);
+			int y = top + (i / 7) * (cell + gap);
+			boolean inside = !day.isBefore(r.period.from) && !day.isAfter(r.period.to);
+			if (!inside)
+			{
+				continue;
+			}
+			Recap.Bucket b = byDay.get(day);
+			long secs = b == null ? 0 : b.seconds;
+			double level = secs == 0 ? 0 : 0.25 + 0.75 * Math.sqrt(secs / (double) most);
+			g.setColor(Theme.alpha(theme.panel, 0.85));
+			g.fillRoundRect(x, y, cell, cell, arc, arc);
+			if (level > 0)
+			{
+				g.setColor(Theme.alpha(theme.accent, level));
+				g.fillRoundRect(x, y, cell, cell, arc, arc);
+			}
+			boolean bright = level > 0.6;
+			Color ink = bright ? (Theme.luma(theme.accent) > 0.55 ? Color.BLACK : Color.WHITE) : theme.text;
+			g.setFont(num);
+			g.setColor(ink);
+			g.drawString(Integer.toString(day.getDayOfMonth()), x + cell / 9, y + cell / 9 + g.getFontMetrics().getAscent());
+			if (secs >= 60 && cell >= u / 14)
+			{
+				String played = Recap.duration(secs);
+				Captions.centered(g, played, x + cell / 2, y + cell - cell / 8, hrs, bright ? ink : theme.muted, cell - cell / 8);
+			}
+		}
+		StringBuilder foot = new StringBuilder();
+		foot.append(r.daysPlayed).append(r.daysPlayed == 1 ? " day played" : " days played");
+		if (r.longestStreak > 1)
+		{
+			foot.append(" · ").append(r.longestStreak).append("-day streak");
+		}
+		if (r.busiestDay != null && r.busiestDaySeconds > 0)
+		{
+			foot.append(" · busiest ").append(r.busiestDay.format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)));
+		}
+		Captions.centered(g, foot.toString(), area.x + area.width / 2, area.y + area.height - footH / 3, theme.bold(u * 0.034f), theme.text, area.width);
 	}
 
 	private static void tiles(Graphics2D g, Theme theme, List<Tile> tiles, Rectangle area, int u)
@@ -602,7 +751,7 @@ final class ShareCard
 		Captions.centered(g, r.period.describe(), w / 2, m + u / 25 + u / 20, theme.regular(u * 0.03f), theme.muted, w - 2 * m);
 
 		Rectangle box = new Rectangle(m, m + u * 16 / 100, w - 2 * m, h - 2 * m - u * 16 / 100 - u / 25);
-		Map<String, Long> levels = new java.util.HashMap<>();
+		Map<String, Long> levels = new HashMap<>();
 		for (Recap.Entry e : r.levels)
 		{
 			levels.put(e.name, e.value);

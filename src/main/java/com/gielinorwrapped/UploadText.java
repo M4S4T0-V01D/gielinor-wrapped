@@ -33,6 +33,10 @@ final class UploadText
 		TITLES.put("bosses", "Bosses and Slayer");
 		TITLES.put("collection", "Collection log");
 		TITLES.put("ge", "Grand Exchange");
+		TITLES.put("pets", "Pets and rare drops");
+		TITLES.put("clues", "Clue scrolls");
+		TITLES.put("quests", "Quests");
+		TITLES.put("records", "Personal records");
 		TITLES.put("montage", "Month by month");
 		TITLES.put("deaths", "Deaths");
 		TITLES.put("gallery", "Gallery");

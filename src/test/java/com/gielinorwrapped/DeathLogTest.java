@@ -86,7 +86,7 @@ public class DeathLogTest
 		// Seeing the death after Death Recap sent it doesn't add another.
 		deaths.died(ACCOUNT, T0 + 1000, 330);
 		assertEquals(1, deaths.list(ACCOUNT).size());
-		assertArrayEquals(new long[]{T0 + 3000}, deaths.recapTimes(ACCOUNT));
+		assertArrayEquals(new long[]{T0 + 3000}, deaths.recapTimes(ACCOUNT, 1));
 	}
 
 	@Test
@@ -125,5 +125,79 @@ public class DeathLogTest
 		assertNull(deaths.read(ACCOUNT, "../deaths.json"));
 		assertNull(deaths.read(ACCOUNT, ".hidden"));
 		assertNull(deaths.read(ACCOUNT, null));
+	}
+
+	private static Map<String, Object> messageV2(long time)
+	{
+		Map<String, Object> m = message(time);
+		m.put("version", 2);
+		m.put("milestones", new String[]{"10th death", "First death to Zulrah"});
+		m.put("gearIds", new int[]{4151, 1127, 11840});
+		m.put("gearSlots", new int[]{3, 4, 10});
+		m.put("gearNames", new String[]{"Abyssal whip", "Rune platebody", "Dragon boots"});
+		m.put("gearValues", new long[]{1_350_000L, 38_000L, 210_000L});
+		m.put("lostNames", new String[]{"Abyssal whip", "120000 x Coins"});
+		m.put("lostValues", new long[]{1_350_000L, 120_000L});
+		return m;
+	}
+
+	@Test
+	public void keepsMilestonesGearAndLoss() throws IOException
+	{
+		deaths.recap(DeathLog.Recap.from(messageV2(T0)), false);
+		DeathLog.Entry e = deaths.list(ACCOUNT).get(0);
+		assertEquals(2, e.recapVersion);
+		assertEquals("10th death", e.milestones.get(0));
+		assertEquals(3, e.gear.size());
+		assertEquals(4151, e.gear.get(0).id);
+		assertEquals(10, e.gear.get(2).slot);
+		assertEquals("Abyssal whip", e.lost.get(0).name);
+		assertEquals("Abyssal whip, Dragon boots, Rune platebody", Composer.gearText(e.gear));
+		Map<String, String> t = Composer.deathTokens(e, "Me");
+		assertEquals("10th death", t.get("milestone"));
+		assertEquals("Abyssal whip", t.get("topLoss"));
+	}
+
+	@Test
+	public void mismatchedGearArraysAreIgnored()
+	{
+		Map<String, Object> m = messageV2(T0);
+		m.put("gearValues", new long[]{1});
+		assertNull(DeathLog.Recap.from(m).gear);
+	}
+
+	@Test
+	public void olderDeathsAreAskedForAgainByANewerDeathRecap() throws IOException
+	{
+		deaths.recap(DeathLog.Recap.from(message(T0)), false);
+		deaths.recap(DeathLog.Recap.from(messageV2(T0 + 60_000)), false);
+		assertEquals(2, deaths.recapTimes(ACCOUNT, 1).length);
+		assertArrayEquals(new long[]{T0 + 60_000}, deaths.recapTimes(ACCOUNT, 2));
+		// Sent again by the newer version, it counts as up to date.
+		deaths.recap(DeathLog.Recap.from(messageV2(T0)), false);
+		assertEquals(2, deaths.recapTimes(ACCOUNT, 2).length);
+		assertEquals(2, deaths.list(ACCOUNT).size());
+	}
+
+	@Test
+	public void summarizesDeadliestAndCostliest()
+	{
+		DeathLog.Entry a = entry("Zulrah", 100);
+		DeathLog.Entry b = entry("Vorkath", 5_000);
+		DeathLog.Entry c = entry("Zulrah", 300);
+		DeathLog.Summary s = DeathLog.summarize(java.util.Arrays.asList(a, b, c));
+		assertEquals("Zulrah", s.deadliest);
+		assertEquals(2, s.deadliestCount);
+		assertEquals(b, s.costliest);
+		assertNull(DeathLog.summarize(java.util.Arrays.asList(a, b)).deadliest);
+	}
+
+	private static DeathLog.Entry entry(String killer, long gp)
+	{
+		DeathLog.Entry e = new DeathLog.Entry();
+		e.time = T0;
+		e.killer = killer;
+		e.gpLost = gp;
+		return e;
 	}
 }

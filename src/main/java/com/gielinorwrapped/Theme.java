@@ -117,6 +117,12 @@ final class Theme
 				return new Theme(name, 0x3E3529, 0x5D5447, 0xC02E2820, 0xFFFF00, 0xFF981F, 0x00FF80, 0x00FFFF);
 			case TOXIC:
 				return new Theme(name, 0x06140A, 0x0F3A1F, 0xB0061A0C, 0xEAFFF0, 0x8FC9A0, 0x6CFF3C, 0x2DE2C8);
+			case VOLCANIC:
+				return new Theme(name, 0x0C0908, 0x2A1410, 0xB0140C0A, 0xFFF1E6, 0xC4A090, 0xFF7A1A, 0xFFD23C);
+			case HOLIDAY:
+				return new Theme(name, 0x0B2A1A, 0x6E1018, 0xB0101C14, 0xFFF8F0, 0xD6C2B0, 0xFF4A4A, 0x7EE08A);
+			case LUMBRIDGE:
+				return new Theme(name, 0xBFE4FF, 0x8CC66A, 0xD0FFFFFF, 0x1E2A1A, 0x55654C, 0x2F6FD6, 0xC08A1E);
 			default:
 				return new Theme(GielinorWrappedConfig.ThemeName.GIELINOR, 0x2B2217, 0x4A3B26, 0xB01E170F, 0xFFF4DC, 0xCBB89A, 0xFFC83C, 0xFF9B3C);
 		}
@@ -214,6 +220,12 @@ final class Theme
 				return GielinorWrappedConfig.Effect.RAIN;
 			case TOXIC:
 				return GielinorWrappedConfig.Effect.BUBBLES;
+			case VOLCANIC:
+				return GielinorWrappedConfig.Effect.EMBERS;
+			case HOLIDAY:
+				return GielinorWrappedConfig.Effect.SNOW;
+			case LUMBRIDGE:
+				return GielinorWrappedConfig.Effect.BLOBS;
 			case DESERT:
 				return GielinorWrappedConfig.Effect.RAYS;
 			default:

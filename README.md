@@ -65,8 +65,10 @@
 
 - XP and levels gained per skill
 - Loot value, your best drops and where they came from
-- Kills, deaths, clues and kill-count milestones
+- Kills, deaths, clues by tier and kill-count milestones
+- Quests finished, pets and rare drops
 - Time played, time per area, your busiest hour and play streaks
+- Personal records: your best hour of XP and your longest session
 - Boss kills, fastest kill times and Slayer tasks
 - Collection log slots, Combat Achievement tasks and achievement diary tasks
 - Grand Exchange trades: gp bought, sold and your net
@@ -82,7 +84,7 @@ Clips are scaled down and stored in the plugin's data folder. When they go over 
 Open the gift icon in the sidebar. The panel has four tabs:
 
 - **Record:** start and stop a footage recording, take a screenshot, capture your emote, add stickers, and see your shots and recordings
-- **Make:** make recaps and manage the saved ones
+- **Make:** a live **Today so far** box (time played, XP, levels, best hour, kills, loot and deaths, refreshed every few seconds), then make recaps and manage the saved ones
 - **Style:** theme, card layout, colours, effects, music track and stickers, without opening the settings
 - **Captions:** write your own captions
 
@@ -122,7 +124,7 @@ In the **Make** tab, pick a range and press **Make recap**:
 - Today, yesterday, this or last week, month or year
 - A custom range up to a year long
 
-The card takes a moment. The video renders in the background at low priority, with a progress bar and a Cancel button.
+The card takes a moment. The video renders in the background at low priority (drawing and encoding run side by side, so it's quicker than before), with a progress bar and a Cancel button.
 
 Under **Your recaps** you can:
 
@@ -158,15 +160,16 @@ A recap uses the shots taken from the start of its range until it is made, so yo
 
 ### Death log
 
-Every death is logged for good, and the newest ones are listed under **Death log** in the **Make** tab, along with your total deaths and gp lost.
+Every death is logged for good, and the newest ones are listed under **Death log** in the **Make** tab, along with your total deaths and gp lost, what killed you most (**Deadliest**) and your most expensive death (**Costliest**).
 
-If you also run the **[Death Recap](https://github.com/M4S4T0-V01D/death-recap)** plugin (on the Plugin Hub), it shares each death with Gielinor Wrapped: who killed you, where, the damage taken, the gp lost, its death card, its screenshot and its replay. Turn this on or off with Death Recap's **Share with Gielinor Wrapped** setting, which is on by default. Deaths Death Recap saved before you installed Gielinor Wrapped are sent across the next time you log in. Plugins can't read each other's files, so the two plugins pass deaths to each other in RuneLite instead. Nothing leaves your computer.
+If you also run the **[Death Recap](https://github.com/M4S4T0-V01D/death-recap)** plugin (on the Plugin Hub), it shares each death with Gielinor Wrapped: who killed you, where, the damage taken, the gp lost, its death card, its screenshot and its replay. Newer versions of Death Recap also send the death's milestones, the gear you were wearing and your costliest items lost. Turn this on or off with Death Recap's **Share with Gielinor Wrapped** setting, which is on by default. Deaths Death Recap saved before you installed Gielinor Wrapped are sent across the next time you log in. Plugins can't read each other's files, so the two plugins pass deaths to each other in RuneLite instead. Nothing leaves your computer.
 
 A recap's video gets a **Deaths** scene that plays your Death Recap cards one after another over the death screenshot, with a caption under each. A death that wasn't clipped uses Death Recap's replay as its highlight clip instead. These options are in the **Death log** settings:
 
 - **Deaths scene:** turns the scene on or off
 - **Deaths shown:** above this, the costliest deaths are kept
-- **Death captions:** tokens `{killer}` `{place}` `{gpLost}` `{damage}` `{world}` `{date}` `{time}` `{player}`
+- **Death captions:** tokens `{killer}` `{place}` `{gpLost}` `{damage}` `{world}` `{date}` `{time}` `{player}`, plus `{milestone}` (e.g. "Your 50th death"), `{gear}` (your three most valuable worn items) and `{topLoss}` (the costliest item lost)
+- **Show gear:** a row of icons under each death showing what you were wearing
 - **Use replays:** saves Death Recap's replay GIFs so they can be used as clips
 
 ### Extra scenes
@@ -180,10 +183,14 @@ Videos can include these scenes, each with an on/off switch under **Extra scenes
 - **Bosses & Slayer:** your top bosses with their cutouts, kill counts and fastest kills, and Slayer tasks done
 - **Collection log:** new slots as an icon grid, with Combat Achievement and diary tasks
 - **Grand Exchange:** gp bought and sold, your net and your biggest trades. The **GE receipt** card uses the real trades when there are any.
+- **Pets & rare drops:** pets you got and your most valuable drops, with their icons
+- **Clue scrolls:** clues completed by tier, with the casket for each
+- **Quests:** how many quests you finished and the latest ones
+- **Personal records:** your best hour of XP, longest session and best XP day
 - **Year in review:** for recaps longer than two months, the best clip from each month
 - **Friend duel:** you vs a friend, side by side
 
-A scene is left out when there is nothing to show, and the extras are among the first scenes dropped when a video runs long.
+A scene is left out when there is nothing to show, and the extras are among the first scenes dropped when a video runs long. Your own recorded footage is kept ahead of the records, quests, clues and pets scenes.
 
 ### Friend duels
 
@@ -200,8 +207,8 @@ Everything is in the plugin's settings:
 - **Video:** format (MP4 or GIF), shape (landscape, square, or vertical for TikTok, Shorts and Reels), resolution, frame rate, maximum length, size limit (50 MB by default; set 10 to fit Discord's free tier), number of clips, pace (relaxed, normal or snappy), which scenes to include, progress bar and cinema bars.
 - **Transitions:** Cut, Fade, Slide, Zoom, Wipe, Pixelate, Flash, Iris, Spin or Mixed, with an adjustable length.
 - **Captions:** on/off, style (Boxed, Outlined, Drop shadow, or Word by word karaoke), position, size, and the text of every scene. **My captions** (one per line, also editable in the **Captions** tab) are shown as caption cards between scenes.
-- **Look:** 15 themes (Gielinor, Midnight, Neon, Wilderness, Clean light, Rune, Dragon, Barrows, Ancient, Desert, Fremennik frost, Vaporwave, Noir, Retro 2007, Toxic), or **Custom colours** with your own background, text and accents. You can also pick a font, background effect (motes, stars, embers, synth grid, soft blobs, snow), colour grade (warm, cool, vintage, sepia, black & white, vivid, dreamy), vignette, film grain, scanlines and a frame border.
-- **Share card layouts:** Summary, Top fives, Highlight moment, Minimal, Splash, Poster, Hiscores table, Quest scroll, GE receipt and Vs last time. Splash is a YouTube-thumbnail style card: sun rays, big outlined text and your best items blown up with a glow.
+- **Look:** 18 themes (Gielinor, Midnight, Neon, Wilderness, Clean light, Rune, Dragon, Barrows, Ancient, Desert, Fremennik frost, Vaporwave, Noir, Retro 2007, Toxic, Volcanic, Holiday, Lumbridge), or **Custom colours** with your own background, text and accents. You can also pick a font, background effect (motes, stars, embers, synth grid, soft blobs, snow), colour grade (warm, cool, vintage, sepia, black & white, vivid, dreamy), vignette, film grain, scanlines and a frame border.
+- **Share card layouts:** Summary, Top fives, Highlight moment, Minimal, Splash, Poster, Hiscores table, Quest scroll, GE receipt, Vs last time, Trophy cabinet and Activity calendar. Trophy cabinet puts your records on tiles (best hour, pets, biggest drop, longest session, clues, quests, best day, streak). Activity calendar shows each day of the range in a week grid, shaded by how long you played. Each falls back to Summary when there isn't enough to show. Splash is a YouTube-thumbnail style card: sun rays, big outlined text and your best items blown up with a glow.
 - **Item and skill icons:** real game sprites next to drops, skills, level ups and highlight clips, on cards and in videos.
 - **Title style:** Splash (the thumbnail look, over your cover shot or your best clip) or Classic.
 - **Recap shots:** shot hotkey, shot area, the gallery scene, and whether the cover is used as the backdrop.
@@ -226,6 +233,9 @@ Caption text can contain `{tokens}` that are filled in for each recap:
 | `{topDrop}`, `{topDropValue}`, `{topSource}` | Best drop, its value, and the best-paying source |
 | `{kills}`, `{topKill}`, `{topKillCount}` | Kills in total, most-killed monster and how many |
 | `{deaths}`, `{clues}` | Deaths and clues completed |
+| `{quests}`, `{pets}` | Quests finished and pets received |
+| `{bestHourXp}` | Most XP gained in one hour of play |
+| `{longestSession}` | Your longest single play session |
 | `{hours}` | Time played |
 | `{days}` | Days played |
 | `{active}` | Time spent actively playing, not idle |

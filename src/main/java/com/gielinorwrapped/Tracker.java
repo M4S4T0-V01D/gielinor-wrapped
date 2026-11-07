@@ -1,9 +1,13 @@
 package com.gielinorwrapped;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
@@ -71,6 +75,12 @@ class Tracker
 	/** Offers reported up to this tick are the state at login, not new trades. */
 	private int geBaselineUntil = -100;
 	private volatile String playerName;
+	/** XP gained in the current clock hour, and when that hour began. */
+	private long hourStart;
+	private long hourXp;
+	/** When the current login began, and how many seconds it has lasted. */
+	private long sessionStart;
+	private long sessionSeconds;
 
 	Tracker(Client client, ClientThread clientThread, ItemManager itemManager, GielinorWrappedConfig config,
 		StatsStore store, ExecutorService io, Consumer<Moment> onMoment)
@@ -100,6 +110,12 @@ class Tracker
 		return today == null ? null : store.gson().toJson(today);
 	}
 
+	/** Today's totals as label and value rows for the side panel. Client thread only. */
+	List<String[]> todayRows()
+	{
+		return WrappedPanel.todayRows(today);
+	}
+
 	LocalDate getDate()
 	{
 		return date;
@@ -117,12 +133,15 @@ class Tracker
 			save();
 			account = hash;
 			playerName = null;
+			hourStart = 0;
 			startDay(LocalDate.now());
 		}
 		if (loggedOut)
 		{
 			today.logins++;
 			loggedOut = false;
+			sessionStart = System.currentTimeMillis();
+			sessionSeconds = 0;
 		}
 		// Every skill is reported again after a login or world hop; take a fresh baseline on the next tick.
 		baselinePending = true;
@@ -230,6 +249,12 @@ class Tracker
 			carryMillis %= 1000;
 			today.playSeconds += secs;
 			today.hours[LocalTime.now().getHour()] += secs;
+			sessionSeconds += secs;
+			if (sessionSeconds > today.longestSession)
+			{
+				today.longestSession = sessionSeconds;
+				today.longestSessionStart = sessionStart;
+			}
 			if (Math.min(client.getMouseIdleTicks(), client.getKeyboardIdleTicks()) < ACTIVE_CYCLES)
 			{
 				today.activeSeconds += secs;
@@ -281,6 +306,23 @@ class Tracker
 		baselinePending = false;
 	}
 
+	/** Adds XP to the current clock hour and keeps today's best hour. */
+	private void addHourXp(long now, long gained)
+	{
+		long start = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).truncatedTo(ChronoUnit.HOURS).toInstant().toEpochMilli();
+		if (start != hourStart)
+		{
+			hourStart = start;
+			hourXp = 0;
+		}
+		hourXp += gained;
+		if (hourXp > today.bestHourXp)
+		{
+			today.bestHourXp = hourXp;
+			today.bestHourStart = hourStart;
+		}
+	}
+
 	@SuppressWarnings("deprecation")
 	private static boolean isOverall(Skill s)
 	{
@@ -303,6 +345,7 @@ class Tracker
 		}
 		String name = skill.getName();
 		today.xp.merge(name, (long) gained, Long::sum);
+		addHourXp(System.currentTimeMillis(), gained);
 		today.skillXp.merge(name, (long) xp, Math::max);
 		int before = Experience.getLevelForXp(prev);
 		int after = Experience.getLevelForXp(xp);

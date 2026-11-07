@@ -29,7 +29,7 @@ import java.util.Locale;
 import java.util.function.Function;
 import javax.imageio.ImageIO;
 
-/** The extra scenes: the map, graphs, comparisons, goal pace, bosses, collection log, Grand Exchange and the year montage. */
+/** The extra scenes: the map, graphs, comparisons, goal pace, bosses, collection log, quests, pets and drops, clues, records, Grand Exchange and the year montage. */
 final class MoreScenes
 {
 	private MoreScenes()
@@ -1156,6 +1156,151 @@ final class MoreScenes
 				boolean alone = slots == 0 && n == 0;
 				Captions.centered(g, String.join("  ·  ", parts), w / 2, (int) (h * (alone ? 0.5 : tall ? 0.85 : 0.88)),
 					th.bold((float) (u * (alone ? 0.07 : 0.045) * Math.max(0.01, a))), alone ? th.accent : ink(th, 1), (int) (w * 0.92));
+			}
+		}
+	}
+
+	/** A counted headline and a short list of rows with optional icons: quests, pets and drops, clue tiers. */
+	static final class Rows extends Scenes.Scene
+	{
+		static final int MAX_ROWS = 5;
+
+		static final class Row
+		{
+			final String label;
+			final String value;
+			final BufferedImage icon;
+
+			Row(String label, String value, BufferedImage icon)
+			{
+				this.label = label;
+				this.value = value;
+				this.icon = icon;
+			}
+		}
+
+		private final String title;
+		private final long count;
+		private final String unit;
+		private final List<Row> rows;
+		private int iconsFor = -1;
+		private final List<BufferedImage> big = new ArrayList<>();
+
+		Rows(String id, Scenes.Look look, double duration, String title, long count, String unit, List<Row> rows)
+		{
+			super(id, look, duration);
+			this.title = title;
+			this.count = count;
+			this.unit = unit;
+			this.rows = rows.size() > MAX_ROWS ? new ArrayList<>(rows.subList(0, MAX_ROWS)) : rows;
+		}
+
+		@Override
+		void render(Graphics2D g, int w, int h, double t)
+		{
+			Theme th = look.theme;
+			background(g, w, h, t);
+			heading(g, look, title, w, h, t);
+			boolean tall = h > w * 1.2;
+			int u = Math.min(w, h);
+			long shown = Math.round(count * Captions.ease(Captions.clamp(t / 1.0)));
+			Captions.centered(g, Recap.number(shown), w / 2, (int) (h * (tall ? 0.25 : 0.27)), th.bold(u * 0.13f), th.accent, (int) (w * 0.9));
+			Captions.centered(g, unit, w / 2, (int) (h * (tall ? 0.3 : 0.34)), th.regular(u * 0.035f), Theme.alpha(th.muted, Captions.clamp((t - 0.4) / 0.4)), w);
+
+			int n = tall ? rows.size() : Math.min(rows.size(), MAX_ROWS - 1);
+			int rowH = (int) (u * 0.085);
+			int iconSize = (int) (rowH * 0.9);
+			if (iconsFor != iconSize)
+			{
+				iconsFor = iconSize;
+				big.clear();
+				for (Row r : rows)
+				{
+					big.add(r.icon == null ? null : Sprites.splash(r.icon, iconSize, new Color(0x111111)));
+				}
+			}
+			int listW = (int) (w * (tall ? 0.84 : 0.6));
+			int lx = (w - listW) / 2;
+			int ly = (int) (h * (tall ? 0.38 : 0.42));
+			Font f = th.bold(rowH * 0.36f);
+			for (int i = 0; i < n; i++)
+			{
+				double p = Captions.ease(Captions.clamp((t - 0.8 - i * 0.2) / 0.4));
+				if (p <= 0)
+				{
+					continue;
+				}
+				Row row = rows.get(i);
+				int y = ly + i * rowH;
+				g.setColor(Theme.alpha(th.panel, 0.8 * p));
+				g.fillRoundRect(lx, y, listW, (int) (rowH * 0.86), rowH / 3, rowH / 3);
+				int textX = lx + rowH / 4;
+				BufferedImage icon = big.get(i);
+				if (icon != null)
+				{
+					Sprites.drawCentered(g, icon, lx + rowH * 0.5, y + rowH * 0.43, p, 0);
+					textX = lx + (int) (rowH * 1.0);
+				}
+				g.setFont(f);
+				FontMetrics fm = g.getFontMetrics();
+				int base = y + ((int) (rowH * 0.86) + fm.getAscent() - fm.getDescent()) / 2;
+				String v = row.value == null ? "" : row.value;
+				String label = row.label == null ? "" : row.label;
+				int room = listW - (textX - lx) - fm.stringWidth(v) - rowH / 2;
+				while (label.length() > 4 && fm.stringWidth(label) > room)
+				{
+					label = label.substring(0, label.length() - 2) + "…";
+					label = label.replace("……", "…");
+				}
+				shadowed(g, label, textX, base, th, ink(th, p));
+				if (!v.isEmpty())
+				{
+					shadowed(g, v, lx + listW - rowH / 4 - fm.stringWidth(v), base, th, Theme.alpha(th.accent, p));
+				}
+			}
+		}
+	}
+
+	/** Personal records: one to three big stats, each with a label and a detail line. */
+	static final class Records extends Scenes.Scene
+	{
+		/** label, value, detail (may be null). */
+		private final List<String[]> stats;
+
+		Records(Scenes.Look look, double duration, List<String[]> stats)
+		{
+			super("records", look, duration);
+			this.stats = stats.size() > 3 ? new ArrayList<>(stats.subList(0, 3)) : stats;
+		}
+
+		@Override
+		void render(Graphics2D g, int w, int h, double t)
+		{
+			Theme th = look.theme;
+			background(g, w, h, t);
+			heading(g, look, "Personal records", w, h, t);
+			boolean tall = h > w * 1.2;
+			int u = Math.min(w, h);
+			int n = stats.size();
+			double top = tall ? 0.26 : 0.24;
+			double bottom = tall ? 0.86 : 0.9;
+			double band = (bottom - top) / Math.max(1, n);
+			for (int i = 0; i < n; i++)
+			{
+				String[] st = stats.get(i);
+				double p = Captions.clamp((t - 0.3 - i * 0.5) / 0.45);
+				if (p <= 0)
+				{
+					continue;
+				}
+				double mid = h * (top + band * (i + 0.5));
+				double pop = Splash.backOut(p);
+				Captions.centered(g, st[0].toUpperCase(Locale.ROOT), w / 2, (int) (mid - u * 0.075), th.regular(u * 0.032f), Theme.alpha(th.muted, p), (int) (w * 0.9));
+				Captions.centered(g, st[1], w / 2, (int) (mid + u * 0.03), th.bold((float) (u * 0.1 * Math.max(0.01, pop))), Theme.alpha(th.accent, p), (int) (w * 0.92));
+				if (st[2] != null)
+				{
+					Captions.centered(g, st[2], w / 2, (int) (mid + u * 0.085), th.regular(u * 0.032f), ink(th, p * 0.85), (int) (w * 0.9));
+				}
 			}
 		}
 	}

@@ -27,14 +27,18 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.function.BooleanSupplier;
 import java.util.function.DoubleConsumer;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import net.runelite.api.gameval.ItemID;
 
 /** Turns a {@link Recap} and its clips into a video. Runs off the client thread; rendering takes a while. */
 final class Composer
@@ -149,10 +153,16 @@ final class Composer
 	static final int MAX_QP = 44;
 	/** The first pass's qp, and the only pass's when there is no size limit or the video fits. */
 	static final int FIRST_QP = 23;
+	/** Seconds between keyframes within a scene; every scene cut starts with one anyway. */
+	static final int KEY_SECONDS = 5;
 	static final int GIF_MAX_SIDE = 640;
 	static final int AUDIO_BITRATE = 128000;
 	private static final DateTimeFormatter MOMENT_DATE = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH);
 	private static final DateTimeFormatter MOMENT_TIME = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH);
+	/** The smallest drop the pets and drops scene lists. */
+	static final long BIG_DROP = 100_000;
+	/** Sessions shorter than this are not worth a record. */
+	static final long MIN_SESSION = 600;
 
 	final List<Scenes.Scene> scenes;
 	final int width;
@@ -508,6 +518,10 @@ final class Composer
 			{
 				// The player's own footage matters more than the charts.
 				graphs = null;
+			}
+			else if (dropMinor(extras))
+			{
+				// So do the record and collection scenes.
 			}
 			else if (!footage.isEmpty())
 			{
@@ -1104,6 +1118,35 @@ final class Composer
 			}
 			out.add(new MoreScenes.Collection(look, 3.5 * pace, icons, r.collection.size(), r.combatTasks, r.diaryTasks));
 		}
+		if (config.petScene())
+		{
+			List<MoreScenes.Rows.Row> rows = petRows(r, media::item);
+			if (!rows.isEmpty())
+			{
+				boolean pets = !r.pets.isEmpty();
+				long count = pets ? r.pets.size() : bigDrops(r).size();
+				out.add(new MoreScenes.Rows("pets", look, 4 * pace, pets ? "Pets & rare drops" : "Rare drops", count,
+					pets ? (count == 1 ? "pet" : "pets") : (count == 1 ? "big drop" : "big drops"), rows));
+			}
+		}
+		if (config.clueScene() && r.totalClues > 0)
+		{
+			out.add(new MoreScenes.Rows("clues", look, 3.5 * pace, "Clue scrolls", r.totalClues,
+				r.totalClues == 1 ? "clue completed" : "clues completed", clueRows(r, media::item)));
+		}
+		if (config.questScene() && !r.quests.isEmpty())
+		{
+			int n = r.quests.size();
+			out.add(new MoreScenes.Rows("quests", look, 3.5 * pace, "Quests", n, n == 1 ? "quest completed" : "quests completed", questRows(r)));
+		}
+		if (config.recordsScene())
+		{
+			List<String[]> stats = records(r);
+			if (!stats.isEmpty())
+			{
+				out.add(new MoreScenes.Records(look, (1.5 + stats.size()) * pace, stats));
+			}
+		}
 		if (config.geScene() && r.hasGe())
 		{
 			List<DayRecord.Trade> trades = new ArrayList<>(r.trades);
@@ -1120,6 +1163,146 @@ final class Composer
 			out.add(new MoreScenes.Montage(look, r.months.size() * 2.5 * pace, r.months, media::clip));
 		}
 		return out;
+	}
+
+	/** Drops worth listing as rare: at least {@link #BIG_DROP} gp, most valuable first. */
+	static List<DayRecord.Drop> bigDrops(Recap r)
+	{
+		List<DayRecord.Drop> out = new ArrayList<>();
+		for (DayRecord.Drop d : r.drops)
+		{
+			if (d != null && d.value >= BIG_DROP)
+			{
+				out.add(d);
+			}
+		}
+		out.sort((a, b) -> Long.compare(b.value, a.value));
+		return out;
+	}
+
+	/** Scenes that give way to the player's footage, least important first. */
+	private static final List<String> MINOR = Arrays.asList("records", "quests", "clues", "pets");
+
+	/** Drops the least important record or collection scene; false when there is none. */
+	static boolean dropMinor(List<Scenes.Scene> extras)
+	{
+		for (String name : MINOR)
+		{
+			for (int i = extras.size() - 1; i >= 0; i--)
+			{
+				if (name.equals(extras.get(i).name))
+				{
+					extras.remove(i);
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/** Pets first, newest first, then the biggest drops. */
+	static List<MoreScenes.Rows.Row> petRows(Recap r, IntFunction<BufferedImage> item)
+	{
+		List<MoreScenes.Rows.Row> rows = new ArrayList<>();
+		for (int i = r.pets.size() - 1; i >= 0 && rows.size() < MoreScenes.Rows.MAX_ROWS; i--)
+		{
+			Moment m = r.pets.get(i);
+			String name = m.itemId > 0 && m.detail != null ? m.detail : "Pet";
+			rows.add(new MoreScenes.Rows.Row(name, day(m.time), m.itemId > 0 ? item.apply(m.itemId) : null));
+		}
+		for (DayRecord.Drop d : bigDrops(r))
+		{
+			if (rows.size() >= MoreScenes.Rows.MAX_ROWS)
+			{
+				break;
+			}
+			String name = (d.quantity > 1 ? Recap.number(d.quantity) + " x " : "") + (d.name == null ? "item" : d.name);
+			rows.add(new MoreScenes.Rows.Row(name, Recap.gp(d.value), d.itemId > 0 ? item.apply(d.itemId) : null));
+		}
+		return rows;
+	}
+
+	/** One row per clue tier, easiest first, each with its reward casket. */
+	static List<MoreScenes.Rows.Row> clueRows(Recap r, IntFunction<BufferedImage> item)
+	{
+		List<MoreScenes.Rows.Row> rows = new ArrayList<>();
+		for (Recap.Entry e : r.clueTiers)
+		{
+			int casket = casket(e.name);
+			rows.add(new MoreScenes.Rows.Row(Tracker.capitalize(e.name), Recap.number(e.value), casket > 0 ? item.apply(casket) : null));
+		}
+		// Six tiers but five rows: drop the easiest ones first, they matter least.
+		while (rows.size() > MoreScenes.Rows.MAX_ROWS)
+		{
+			rows.remove(0);
+		}
+		return rows;
+	}
+
+	static int casket(String tier)
+	{
+		switch (tier == null ? "" : tier)
+		{
+			case "beginner":
+				return ItemID.TRAIL_REWARD_CASKET_BEGINNER;
+			case "easy":
+				return ItemID.TRAIL_REWARD_CASKET_EASY;
+			case "medium":
+				return ItemID.TRAIL_REWARD_CASKET_MEDIUM;
+			case "hard":
+				return ItemID.TRAIL_REWARD_CASKET_HARD;
+			case "elite":
+				return ItemID.TRAIL_REWARD_CASKET_ELITE;
+			case "master":
+				return ItemID.TRAIL_REWARD_CASKET_MASTER;
+			default:
+				return 0;
+		}
+	}
+
+	/** The latest quests, newest first. */
+	static List<MoreScenes.Rows.Row> questRows(Recap r)
+	{
+		List<MoreScenes.Rows.Row> rows = new ArrayList<>();
+		for (int i = r.quests.size() - 1; i >= 0 && rows.size() < MoreScenes.Rows.MAX_ROWS; i--)
+		{
+			Moment m = r.quests.get(i);
+			rows.add(new MoreScenes.Rows.Row(m.title, day(m.time), null));
+		}
+		return rows;
+	}
+
+	/** Best hour, longest session and (for longer recaps) best XP day, as label, value and detail. */
+	static List<String[]> records(Recap r)
+	{
+		List<String[]> out = new ArrayList<>();
+		DayRecord t = r.total;
+		if (t.bestHourXp > 0)
+		{
+			String when = t.bestHourStart > 0 ? at(t.bestHourStart).format(MOMENT_DATE) + ", " + at(t.bestHourStart).format(MOMENT_TIME)
+				+ "–" + at(t.bestHourStart).plusHours(1).format(MOMENT_TIME) : null;
+			out.add(new String[]{"Best hour", Recap.number(t.bestHourXp) + " XP", when});
+		}
+		if (t.longestSession >= MIN_SESSION)
+		{
+			String when = t.longestSessionStart > 0 ? "from " + at(t.longestSessionStart).format(MOMENT_DATE) + ", " + at(t.longestSessionStart).format(MOMENT_TIME) : null;
+			out.add(new String[]{"Longest session", Recap.duration(t.longestSession), when});
+		}
+		if (!out.isEmpty() && r.period.days() > 1 && r.bestXpDay != null && r.bestXpDayXp > 0)
+		{
+			out.add(new String[]{"Best XP day", Recap.number(r.bestXpDayXp) + " XP", r.bestXpDay.format(MOMENT_DATE)});
+		}
+		return out;
+	}
+
+	private static ZonedDateTime at(long millis)
+	{
+		return Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault());
+	}
+
+	private static String day(long millis)
+	{
+		return millis > 0 ? at(millis).format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)) : "";
 	}
 
 	private static double sum(List<? extends Scenes.Scene> scenes)
@@ -1205,8 +1388,17 @@ final class Composer
 		{
 			String card = e.card;
 			String shot = e.shot;
+			List<DeathLog.Item> gear = config.deathGear() ? e.gear : null;
 			list.add(new Scenes.Death(card == null ? null : () -> media.deathImage(card), shot == null ? null : () -> media.deathImage(shot),
-				e.killer, Recap.fill(config.deathText(), deathTokens(e, player))));
+				e.killer, Recap.fill(config.deathText(), deathTokens(e, player)), gear == null || gear.isEmpty() ? null : () ->
+			{
+				List<BufferedImage> icons = new ArrayList<>();
+				for (DeathLog.Item it : gear)
+				{
+					icons.add(media.item(it.id));
+				}
+				return icons;
+			}));
 		}
 		return new Scenes.Deaths(look, list);
 	}
@@ -1223,7 +1415,31 @@ final class Composer
 		t.put("date", MOMENT_DATE.format(at));
 		t.put("time", MOMENT_TIME.format(at));
 		t.put("player", player);
+		t.put("milestone", e.milestones == null || e.milestones.isEmpty() ? "" : e.milestones.get(0));
+		t.put("gear", gearText(e.gear));
+		t.put("topLoss", e.lost == null || e.lost.isEmpty() ? "" : e.lost.get(0).name);
 		return t;
+	}
+
+	/** The worn gear as a short line: the three most valuable pieces, then "+N more". */
+	static String gearText(List<DeathLog.Item> gear)
+	{
+		if (gear == null || gear.isEmpty())
+		{
+			return "";
+		}
+		List<DeathLog.Item> top = new ArrayList<>(gear);
+		top.sort(Comparator.comparingLong((DeathLog.Item i) -> i.value).reversed());
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < Math.min(3, top.size()); i++)
+		{
+			sb.append(i == 0 ? "" : ", ").append(top.get(i).name);
+		}
+		if (top.size() > 3)
+		{
+			sb.append(" +").append(top.size() - 3).append(" more");
+		}
+		return sb.toString();
 	}
 
 	static Map<String, String> momentTokens(Moment m)
@@ -1342,7 +1558,7 @@ final class Composer
 		BooleanSupplier cancelled) throws IOException
 	{
 		H264Encoder encoder = new H264Encoder(width, height, fps);
-		encoder.setKeyInterval(fps * 2);
+		encoder.setKeyInterval(fps * KEY_SECONDS);
 		encoder.setQp(qp);
 		Mp4Writer mp4 = new Mp4Writer(width, height, fps, encoder.sps(), encoder.pps());
 		if (music != null)
@@ -1352,7 +1568,8 @@ final class Composer
 		int[] index = {0};
 		try (OutputStream media = new BufferedOutputStream(output.scratch(), 1 << 16))
 		{
-			renderFrames((px, key) ->
+			// Encoding takes longer than drawing, so frames are encoded on their own thread while the next is drawn.
+			try (Pipeline pipe = new Pipeline(width * height, (px, key) ->
 			{
 				H264Encoder.Frame f = encoder.encode(px, key);
 				mp4.addFrame(f, media);
@@ -1365,9 +1582,156 @@ final class Composer
 				{
 					encoder.setQp(rc.next(f.nal.length));
 				}
-			}, progress, cancelled);
+			}))
+			{
+				renderFrames(pipe, progress, cancelled);
+				pipe.finish();
+			}
 		}
 		return mp4;
+	}
+
+	/**
+	 * Hands frames to a second thread through a few pooled buffers. The thread always drains its queue, also after a
+	 * failure, so neither side can block forever; a failure is rethrown to the drawing side.
+	 */
+	static final class Pipeline implements FrameSink, AutoCloseable
+	{
+		static final int BUFFERS = 3;
+		private static final Job END = new Job(null);
+
+		private static final class Job
+		{
+			final int[] px;
+			boolean key;
+
+			Job(int[] px)
+			{
+				this.px = px;
+			}
+		}
+
+		private final ArrayBlockingQueue<Job> free = new ArrayBlockingQueue<>(BUFFERS);
+		private final ArrayBlockingQueue<Job> full = new ArrayBlockingQueue<>(BUFFERS + 1);
+		private final FrameSink sink;
+		private final Thread thread;
+		private volatile Throwable failure;
+		private boolean ended;
+
+		Pipeline(int pixels, FrameSink sink)
+		{
+			this.sink = sink;
+			for (int i = 0; i < BUFFERS; i++)
+			{
+				free.add(new Job(new int[pixels]));
+			}
+			thread = new Thread(this::run, "gielinor-wrapped-encode");
+			thread.setDaemon(true);
+			thread.start();
+		}
+
+		private void run()
+		{
+			while (true)
+			{
+				Job job;
+				try
+				{
+					job = full.take();
+				}
+				catch (InterruptedException e)
+				{
+					failure = e;
+					return;
+				}
+				if (job == END)
+				{
+					return;
+				}
+				if (failure == null)
+				{
+					try
+					{
+						sink.accept(job.px, job.key);
+					}
+					catch (Throwable t)
+					{
+						failure = t;
+					}
+				}
+				free.add(job);
+			}
+		}
+
+		@Override
+		public void accept(int[] argb, boolean sceneStart) throws IOException
+		{
+			check();
+			Job job;
+			try
+			{
+				job = free.take();
+			}
+			catch (InterruptedException e)
+			{
+				throw new InterruptedIOException("Recap cancelled");
+			}
+			System.arraycopy(argb, 0, job.px, 0, job.px.length);
+			job.key = sceneStart;
+			full.add(job);
+		}
+
+		/** Waits for every frame handed over so far to be encoded. */
+		void finish() throws IOException
+		{
+			end();
+			check();
+		}
+
+		private void end() throws IOException
+		{
+			if (ended)
+			{
+				return;
+			}
+			ended = true;
+			full.add(END);
+			try
+			{
+				thread.join();
+			}
+			catch (InterruptedException e)
+			{
+				throw new InterruptedIOException("Recap cancelled");
+			}
+		}
+
+		private void check() throws IOException
+		{
+			Throwable t = failure;
+			if (t instanceof IOException)
+			{
+				throw (IOException) t;
+			}
+			if (t instanceof RuntimeException)
+			{
+				throw (RuntimeException) t;
+			}
+			if (t instanceof Error)
+			{
+				throw (Error) t;
+			}
+			if (t != null)
+			{
+				throw new IOException(t);
+			}
+		}
+
+		@Override
+		public void close() throws IOException
+		{
+			end();
+		}
 	}
 
 	/** The song as AAC frames, ready for any number of MP4 tracks. */
@@ -1414,7 +1778,7 @@ final class Composer
 		}
 	}
 
-	private interface FrameSink
+	interface FrameSink
 	{
 		void accept(int[] argb, boolean sceneStart) throws IOException;
 	}

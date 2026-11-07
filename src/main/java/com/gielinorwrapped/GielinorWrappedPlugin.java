@@ -123,6 +123,8 @@ public class GielinorWrappedPlugin extends Plugin
 	private ExecutorService io;
 	private StatsStore store;
 	private DeathLog deathLog;
+	/** The bridge version of the running Death Recap, from its last "ready" message. */
+	private volatile int recapVersion = 1;
 	private ClipLibrary library;
 	private Tracker tracker;
 	private Capture capture;
@@ -134,6 +136,9 @@ public class GielinorWrappedPlugin extends Plugin
 	private NavigationButton navButton;
 	/** Account whose recaps the panel shows; the last one logged in. */
 	private volatile long viewAccount = -1;
+	/** The side panel's "Today so far" box refreshes every this many ticks. */
+	private static final int TODAY_TICKS = 10;
+	private int todayTicks;
 	private static final int MUSIC_INDEX = 6;
 	/** Client thread only, like the two fields after it. */
 	private Map<String, Integer> musicArchives;
@@ -1386,6 +1391,16 @@ public class GielinorWrappedPlugin extends Plugin
 				sayHello(account);
 			}
 			capture.onTick(client.getGameState() == GameState.LOGGED_IN ? tracker.getAccount() : -1);
+			if (++todayTicks >= TODAY_TICKS)
+			{
+				todayTicks = 0;
+				WrappedPanel p = panel;
+				if (p != null)
+				{
+					List<String[]> rows = tracker.todayRows();
+					SwingUtilities.invokeLater(() -> p.showToday(rows));
+				}
+			}
 		}
 	}
 
@@ -1458,6 +1473,11 @@ public class GielinorWrappedPlugin extends Plugin
 		}
 		if ("ready".equals(event.getName()))
 		{
+			Object v = event.getData() == null ? null : event.getData().get("version");
+			if (v instanceof Number)
+			{
+				recapVersion = ((Number) v).intValue();
+			}
 			long account = viewAccount;
 			if (account != -1)
 			{
@@ -1496,7 +1516,7 @@ public class GielinorWrappedPlugin extends Plugin
 		{
 			Map<String, Object> data = new HashMap<>();
 			data.put("accountHash", account);
-			data.put("have", deaths.recapTimes(account));
+			data.put("have", deaths.recapTimes(account, recapVersion));
 			eventBus.post(new PluginMessage(DeathLog.NAMESPACE, "hello", data));
 		});
 	}

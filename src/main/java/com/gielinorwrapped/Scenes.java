@@ -882,13 +882,21 @@ final class Scenes
 		/** Who did it, shown when there's no card. */
 		final String killer;
 		final String caption;
+		/** Icons of the gear worn, in equipment slot order; null or empty for none. */
+		final Supplier<List<BufferedImage>> gear;
 
 		Death(Supplier<BufferedImage> card, Supplier<BufferedImage> shot, String killer, String caption)
+		{
+			this(card, shot, killer, caption, null);
+		}
+
+		Death(Supplier<BufferedImage> card, Supplier<BufferedImage> shot, String killer, String caption, Supplier<List<BufferedImage>> gear)
 		{
 			this.card = card;
 			this.shot = shot;
 			this.killer = killer;
 			this.caption = caption;
+			this.gear = gear;
 		}
 	}
 
@@ -900,6 +908,7 @@ final class Scenes
 		private final List<Death> deaths;
 		private List<BufferedImage> cards;
 		private List<BufferedImage> shots;
+		private List<List<BufferedImage>> gear;
 
 		Deaths(Look look, List<Death> deaths)
 		{
@@ -930,8 +939,15 @@ final class Scenes
 		{
 			cards = new ArrayList<>();
 			shots = new ArrayList<>();
+			gear = new ArrayList<>();
 			for (Death d : deaths)
 			{
+				List<BufferedImage> icons = new ArrayList<>();
+				if (d.gear != null && d.gear.get() != null)
+				{
+					d.gear.get().stream().filter(java.util.Objects::nonNull).forEach(icons::add);
+				}
+				gear.add(icons);
 				BufferedImage card = d.card == null ? null : d.card.get();
 				cards.add(card);
 				// The screenshot sits behind the card, or fills the screen when there's no card.
@@ -944,6 +960,7 @@ final class Scenes
 		{
 			cards = null;
 			shots = null;
+			gear = null;
 		}
 
 		@Override
@@ -979,6 +996,12 @@ final class Scenes
 			}
 
 			double bottom = look.captions ? 0.78 : 0.92;
+			List<BufferedImage> worn = gear == null ? null : gear.get(i);
+			if (worn != null && !worn.isEmpty())
+			{
+				bottom -= 0.11;
+				drawGear(g, worn, w, h, h * (bottom + 0.015), Captions.clamp((local - 0.25) / 0.4));
+			}
 			if (card != null)
 			{
 				double pop = 0.9 + 0.1 * Captions.ease(Captions.clamp(local / 0.3));
@@ -1043,6 +1066,47 @@ final class Scenes
 		}
 
 		/** Text with a dark outline so it reads over any screenshot. */
+		/** The gear worn as a row of item icons on dark tiles, each popping in after the one before. */
+		private static void drawGear(Graphics2D g, List<BufferedImage> icons, int w, int h, double top, double p)
+		{
+			if (p <= 0)
+			{
+				return;
+			}
+			int n = icons.size();
+			int size = (int) Math.min(h * 0.085, w * 0.84 / n / 1.15);
+			int gap = size / 7;
+			int total = n * size + (n - 1) * gap;
+			int x = (w - total) / 2;
+			int y = (int) top;
+			Object old = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+			for (int k = 0; k < n; k++)
+			{
+				double a = Captions.clamp(p * n - k * 0.6);
+				if (a <= 0)
+				{
+					break;
+				}
+				int cx = x + k * (size + gap);
+				int lift = (int) ((1 - Captions.ease(a)) * size * 0.4);
+				g.setColor(new Color(0, 0, 0, (int) (160 * a)));
+				g.fillRoundRect(cx, y + lift, size, size, size / 4, size / 4);
+				BufferedImage icon = icons.get(k);
+				double scale = Math.min((size * 0.82) / icon.getWidth(), (size * 0.82) / icon.getHeight());
+				int iw = (int) (icon.getWidth() * scale);
+				int ih = (int) (icon.getHeight() * scale);
+				java.awt.Composite oc = g.getComposite();
+				g.setComposite(java.awt.AlphaComposite.getInstance(java.awt.AlphaComposite.SRC_OVER, (float) a));
+				g.drawImage(icon, cx + (size - iw) / 2, y + lift + (size - ih) / 2, iw, ih, null);
+				g.setComposite(oc);
+			}
+			if (old != null)
+			{
+				g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, old);
+			}
+		}
+
 		private static void shout(Graphics2D g, String s, int x, int y, Color c, double a)
 		{
 			if (a <= 0)

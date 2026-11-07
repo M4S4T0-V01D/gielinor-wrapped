@@ -61,7 +61,7 @@ public class ExtrasTest
 		}
 	}
 
-	private static DayRecord day(String date, long seconds, long miningXp)
+	static DayRecord day(String date, long seconds, long miningXp)
 	{
 		DayRecord d = new DayRecord(date);
 		d.playSeconds = seconds;
@@ -107,6 +107,20 @@ public class ExtrasTest
 		d.addMoment(slot);
 		d.addMoment(new Moment(T0 + 9100, Moment.Type.COMBAT_TASK, "Snake Rebound", "elite", 0, 30));
 		d.addMoment(new Moment(T0 + 9200, Moment.Type.DIARY, "Varrock", "hard", 0, 30));
+		d.addMoment(new Moment(T0 + 9300, Moment.Type.QUEST, "Dragon Slayer II", "Quest complete", 0, 50));
+		d.addMoment(new Moment(T0 + 9400, Moment.Type.QUEST, "Song of the Elves", "Quest complete", 0, 50));
+		Moment pet = new Moment(T0 + 9500, Moment.Type.PET, "Pet drop!", "Pet snakeling", 0, 100);
+		pet.itemId = 12921;
+		d.addMoment(pet);
+		d.addDrop(new DayRecord.Drop(T0, 12922, "Tanzanite fang", 1, 3_100_000, "Zulrah"));
+		d.addDrop(new DayRecord.Drop(T0, 12934, "Zulrah's scales", 500, 80_000, "Zulrah"));
+		d.clues.put("hard", 4);
+		d.clues.put("beginner", 2);
+		d.clues.put("elite", 1);
+		d.bestHourXp = 310_000;
+		d.bestHourStart = T0;
+		d.longestSession = 5 * 3600 + 12 * 60;
+		d.longestSessionStart = T0 - 3600_000;
 
 		DayRecord before = day("2025-06-01", 7200, 900_000);
 		before.deaths = 9;
@@ -157,7 +171,7 @@ public class ExtrasTest
 		assertEquals("Zulrah", r.bosses.get(0).name);
 		assertEquals("Zulrah", r.fastest.get(0).name);
 		assertEquals("12850", r.regions.get(0).name);
-		assertEquals(1, r.collection.size());
+		assertEquals(2, r.collection.size());
 		assertEquals(1, r.combatTasks);
 		assertEquals(1, r.diaryTasks);
 		assertEquals(5, r.months.size());
@@ -290,7 +304,7 @@ public class ExtrasTest
 		Config c = new Config();
 		Composer composer = new Composer(r, media(friend), c);
 		List<String> names = composer.scenes.stream().map(s -> s.name).collect(Collectors.toList());
-		for (String n : new String[]{"map", "graphs", "bosses", "collection", "ge", "montage", "compare", "versus", "pace"})
+		for (String n : new String[]{"map", "graphs", "bosses", "collection", "ge", "montage", "compare", "versus", "pace", "pets", "clues", "quests", "records"})
 		{
 			assertTrue(n + " missing from " + names, names.contains(n));
 		}
@@ -302,7 +316,7 @@ public class ExtrasTest
 		dir.mkdirs();
 		for (Scenes.Scene s : composer.scenes)
 		{
-			if (!Arrays.asList("map", "graphs", "bosses", "collection", "ge", "montage", "compare", "versus", "pace").contains(s.name))
+			if (!Arrays.asList("map", "graphs", "bosses", "collection", "ge", "montage", "compare", "versus", "pace", "pets", "clues", "quests", "records").contains(s.name))
 			{
 				continue;
 			}
@@ -322,6 +336,58 @@ public class ExtrasTest
 		String upload = UploadText.text(r, false, composer.scenes, composer.fps);
 		assertTrue(upload, upload.contains("Vs a friend"));
 		assertTrue(upload, upload.contains("Month by month"));
+	}
+
+	@Test
+	public void buildsTheNewStatScenes()
+	{
+		Recap r = richRecap();
+		assertEquals(2, r.quests.size());
+		assertEquals("Dragon Slayer II", r.quests.get(0).title);
+		assertEquals(1, r.pets.size());
+		assertEquals(Arrays.asList("beginner", "hard", "elite"), r.clueTiers.stream().map(e -> e.name).collect(Collectors.toList()));
+		assertEquals(Recap.duration(5 * 3600 + 12 * 60), r.tokens(false).get("longestSession"));
+		assertEquals(Recap.number(310_000), r.tokens(false).get("bestHourXp"));
+		assertEquals("2", r.tokens(false).get("quests"));
+
+		List<MoreScenes.Rows.Row> quests = Composer.questRows(r);
+		assertEquals("Song of the Elves", quests.get(0).label);
+
+		List<MoreScenes.Rows.Row> pets = Composer.petRows(r, id -> null);
+		assertEquals("Pet snakeling", pets.get(0).label);
+		assertEquals("Tanzanite fang", pets.get(1).label);
+		assertEquals(2, pets.size());
+
+		List<MoreScenes.Rows.Row> clues = Composer.clueRows(r, id -> null);
+		assertEquals("Beginner", clues.get(0).label);
+		assertEquals("4", clues.get(1).value);
+
+		List<String[]> records = Composer.records(r);
+		assertEquals("Best hour", records.get(0)[0]);
+		assertEquals("Longest session", records.get(1)[0]);
+		assertEquals("Best XP day", records.get(2)[0]);
+		assertNotNull(records.get(0)[2]);
+	}
+
+	@Test
+	public void recordsKeepTheBestDayWhenMerged()
+	{
+		DayRecord a = new DayRecord("2026-01-01");
+		a.bestHourXp = 100;
+		a.bestHourStart = 1;
+		a.longestSession = 900;
+		a.longestSessionStart = 2;
+		DayRecord b = new DayRecord("2026-01-02");
+		b.bestHourXp = 50;
+		b.bestHourStart = 3;
+		b.longestSession = 4000;
+		b.longestSessionStart = 4;
+		a.merge(b);
+		assertEquals(100, a.bestHourXp);
+		assertEquals(1, a.bestHourStart);
+		assertEquals(4000, a.longestSession);
+		assertEquals(4, a.longestSessionStart);
+		assertTrue(Composer.records(Recap.build(YEAR, "Zezima", Collections.singletonList(new DayRecord("2026-01-03")), Collections.emptyList())).isEmpty());
 	}
 
 	@Test

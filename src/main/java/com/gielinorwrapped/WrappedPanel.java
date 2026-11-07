@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -201,6 +203,8 @@ final class WrappedPanel extends PluginPanel
 	private final JPanel shotsBox = box();
 	private final JPanel recordingsBox = box();
 	private final JPanel deathsBox = box();
+	private final JPanel todayBox = section();
+	private List<String[]> shownToday;
 	private final Map<String, Image> deathThumbs = new HashMap<>();
 	private final Map<String, Image> shotThumbs = new HashMap<>();
 	private final Map<String, Image> thumbs = new HashMap<>();
@@ -460,6 +464,10 @@ final class WrappedPanel extends PluginPanel
 	private JPanel buildMake()
 	{
 		JPanel page = box();
+		page.add(heading("Today so far"));
+		page.add(todayBox);
+		showToday(todayRows(null));
+		page.add(heading("Make a recap"));
 		JPanel make = section();
 		// This week always includes today, so a first recap has something in it.
 		range.setSelectedItem(Range.THIS_WEEK);
@@ -490,7 +498,7 @@ final class WrappedPanel extends PluginPanel
 		sizes.setOpaque(false);
 		for (int mb : SIZES)
 		{
-			JButton b = button(mb == 0 ? "No limit" : mb + " MB", sizeTip(mb), () ->
+			JButton b = button(mb == 0 ? "None" : Integer.toString(mb), sizeTip(mb), () ->
 			{
 				actions.setConfig("targetSize", mb);
 				showSize(mb);
@@ -499,7 +507,7 @@ final class WrappedPanel extends PluginPanel
 			sizes.add(b);
 		}
 		sizeRow.setOpaque(false);
-		sizeRow.add(small("Video size"), BorderLayout.NORTH);
+		sizeRow.add(small("Video size limit (MB)"), BorderLayout.NORTH);
 		sizeRow.add(sizes, BorderLayout.CENTER);
 		sizeRow.setVisible(video.isSelected());
 		video.addActionListener(e ->
@@ -544,6 +552,76 @@ final class WrappedPanel extends PluginPanel
 		page.add(left(deathsBox));
 		showDeaths(Collections.emptyList(), Collections.emptyMap());
 		return page;
+	}
+
+	/** Today's totals as {label, value} rows; empty values are left out. */
+	static List<String[]> todayRows(DayRecord d)
+	{
+		List<String[]> rows = new ArrayList<>();
+		if (d == null || d.playSeconds < 60)
+		{
+			return rows;
+		}
+		String active = d.activeSeconds > 0 ? " · " + d.activeSeconds * 100 / d.playSeconds + "% active" : "";
+		rows.add(new String[]{"Played", Recap.duration(d.playSeconds) + active});
+		long xp = d.totalXp();
+		if (xp > 0)
+		{
+			String top = d.xp.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
+			rows.add(new String[]{"XP", Recap.number(xp) + (d.xp.size() > 1 && top != null ? " · most " + top : "")});
+		}
+		int levels = d.totalLevels();
+		if (levels > 0)
+		{
+			rows.add(new String[]{"Levels", "+" + levels});
+		}
+		if (d.bestHourXp > 0 && d.playSeconds >= 3600)
+		{
+			rows.add(new String[]{"Best hour", Recap.number(d.bestHourXp) + " XP"});
+		}
+		int kills = d.kills.values().stream().mapToInt(Integer::intValue).sum();
+		if (kills > 0)
+		{
+			rows.add(new String[]{"Kills", Recap.number(kills)});
+		}
+		if (d.lootValue > 0)
+		{
+			rows.add(new String[]{"Loot", Recap.gp(d.lootValue)});
+		}
+		if (d.deaths > 0)
+		{
+			rows.add(new String[]{"Deaths", Integer.toString(d.deaths)});
+		}
+		return rows;
+	}
+
+	/** Shows {@link #todayRows}; only rebuilt when they change. */
+	void showToday(List<String[]> rows)
+	{
+		if (shownToday != null && shownToday.size() == rows.size()
+			&& IntStream.range(0, rows.size()).allMatch(i -> Arrays.equals(rows.get(i), shownToday.get(i))))
+		{
+			return;
+		}
+		shownToday = rows;
+		todayBox.removeAll();
+		if (rows.isEmpty())
+		{
+			todayBox.add(left(small("Play a little and your day shows here.")));
+		}
+		for (String[] r : rows)
+		{
+			JPanel row = new JPanel(new BorderLayout(4, 0));
+			row.setOpaque(false);
+			row.add(small(r[0]), BorderLayout.WEST);
+			JLabel v = small(r[1]);
+			v.setForeground(Color.WHITE);
+			v.setHorizontalAlignment(JLabel.RIGHT);
+			row.add(v, BorderLayout.CENTER);
+			todayBox.add(wide(row));
+		}
+		todayBox.revalidate();
+		todayBox.repaint();
 	}
 
 	private static String sizeTip(int mb)
@@ -729,6 +807,16 @@ final class WrappedPanel extends PluginPanel
 			long gp = list.stream().mapToLong(e -> Math.max(0, e.gpLost)).sum();
 			deathsBox.add(left(small(list.size() + (list.size() == 1 ? " death" : " deaths")
 				+ (gp > 0 ? " · " + QuantityFormatter.quantityToStackSize(gp) + " gp lost" : ""))));
+			DeathLog.Summary sum = DeathLog.summarize(list);
+			if (sum.deadliest != null)
+			{
+				deathsBox.add(left(small("Deadliest: " + sum.deadliest + " (" + sum.deadliestCount + "×)")));
+			}
+			if (sum.costliest != null && list.size() > 1)
+			{
+				deathsBox.add(left(small("Costliest: " + QuantityFormatter.quantityToStackSize(sum.costliest.gpLost) + " gp"
+					+ (sum.costliest.killer != null ? " to " + sum.costliest.killer : ""))));
+			}
 		}
 		for (int i = 0; i < Math.min(DEATHS_SHOWN, list.size()); i++)
 		{
@@ -764,6 +852,19 @@ final class WrappedPanel extends PluginPanel
 		if (e.gpLost > 0)
 		{
 			side.add(left(small(QuantityFormatter.quantityToStackSize(e.gpLost) + " gp lost")));
+		}
+		if (e.milestones != null && !e.milestones.isEmpty())
+		{
+			JLabel m = small(e.milestones.get(0));
+			m.setForeground(new Color(255, 200, 60));
+			side.add(left(m));
+		}
+		if (e.gear != null && !e.gear.isEmpty())
+		{
+			JLabel g = small("Wore " + Composer.gearText(e.gear));
+			g.setToolTipText("<html>" + e.gear.stream().map(i -> i.name.replace("&", "&amp;").replace("<", "&lt;"))
+				.collect(java.util.stream.Collectors.joining("<br>")) + "</html>");
+			side.add(left(g));
 		}
 		if (e.card != null || e.shot != null)
 		{

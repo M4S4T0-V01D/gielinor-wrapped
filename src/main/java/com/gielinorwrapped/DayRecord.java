@@ -55,6 +55,12 @@ public class DayRecord
 	public List<Trade> trades = new ArrayList<>();
 	/** The account type varbit as last seen, or -1 before it was tracked. */
 	public int accountType = -1;
+	/** The most XP gained within one clock hour, and when that hour began (epoch millis). */
+	public long bestHourXp;
+	public long bestHourStart;
+	/** The longest unbroken login, in seconds, and when it began (epoch millis). */
+	public long longestSession;
+	public long longestSessionStart;
 
 	public static class Drop
 	{
@@ -223,6 +229,16 @@ public class DayRecord
 		for (Trade t : o.trades)
 		{
 			addTrade(t);
+		}
+		if (o.bestHourXp > bestHourXp)
+		{
+			bestHourXp = o.bestHourXp;
+			bestHourStart = o.bestHourStart;
+		}
+		if (o.longestSession > longestSession)
+		{
+			longestSession = o.longestSession;
+			longestSessionStart = o.longestSessionStart;
 		}
 	}
 

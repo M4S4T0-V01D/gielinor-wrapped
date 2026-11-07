@@ -1,5 +1,6 @@
 package com.gielinorwrapped;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
@@ -20,6 +21,39 @@ import org.junit.Test;
 /** Lays the panel out offscreen with sample recaps; the picture is kept in build/panel.png. */
 public class WrappedPanelTest
 {
+	static DayRecord sampleDay()
+	{
+		DayRecord d = new DayRecord("2026-11-07");
+		d.playSeconds = 3 * 3600 + 25 * 60;
+		d.activeSeconds = d.playSeconds * 3 / 4;
+		d.xp.put("Slayer", 412_000L);
+		d.xp.put("Hitpoints", 140_000L);
+		d.levels.put("Slayer", 2);
+		d.bestHourXp = 182_000;
+		d.kills.put("Abyssal demon", 210);
+		d.lootValue = 4_300_000;
+		d.deaths = 1;
+		return d;
+	}
+
+	@Test
+	public void todayRowsSkipWhatDidNotHappen()
+	{
+		assertTrue(WrappedPanel.todayRows(null).isEmpty());
+		assertTrue(WrappedPanel.todayRows(new DayRecord("2026-11-07")).isEmpty());
+		java.util.List<String[]> rows = WrappedPanel.todayRows(sampleDay());
+		assertEquals("Played", rows.get(0)[0]);
+		assertEquals("3h 25m · 75% active", rows.get(0)[1]);
+		assertEquals("552,000 · most Slayer", rows.get(1)[1]);
+		assertEquals(7, rows.size());
+
+		DayRecord quiet = new DayRecord("2026-11-07");
+		quiet.playSeconds = 600;
+		rows = WrappedPanel.todayRows(quiet);
+		assertEquals(1, rows.size());
+		assertEquals("10m", rows.get(0)[1]);
+	}
+
 	@Test
 	public void laysOut() throws Exception
 	{
@@ -35,6 +69,7 @@ public class WrappedPanelTest
 				new ClipLibrary.Recording("a", System.currentTimeMillis() - 3_600_000, 95_000, 40L << 20),
 				new ClipLibrary.Recording("b", System.currentTimeMillis() - 86_400_000, 300_000, 120L << 20)));
 			panel.showTracks(Arrays.asList("Harmony", "Newbie Melody", "Sea Shanty 2"));
+			panel.showToday(WrappedPanel.todayRows(sampleDay()));
 
 			Recaps.Job job = new Recaps.Job(1, Period.containing(Period.Kind.MONTH, LocalDate.of(2026, 10, 1), DayOfWeek.MONDAY), true, null);
 			job.status = Recaps.Status.VIDEO;

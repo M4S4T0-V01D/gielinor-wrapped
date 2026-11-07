@@ -85,6 +85,9 @@ public interface GielinorWrappedConfig extends Config
 		NOIR("Noir"),
 		RETRO("Retro 2007"),
 		TOXIC("Toxic (Zulrah green)"),
+		VOLCANIC("Volcanic (TzHaar obsidian)"),
+		HOLIDAY("Holiday (holly & snow)"),
+		LUMBRIDGE("Lumbridge (sky & grass)"),
 		CUSTOM("Custom colours");
 
 		private final String label;
@@ -317,7 +320,9 @@ public interface GielinorWrappedConfig extends Config
 		HISCORES("Hiscores table"),
 		SCROLL("Quest scroll"),
 		RECEIPT("GE receipt"),
-		VERSUS_LAST("Vs last time");
+		VERSUS_LAST("Vs last time"),
+		TROPHIES("Trophy cabinet"),
+		CALENDAR("Activity calendar");
 
 		private final String label;
 
@@ -1168,7 +1173,7 @@ public interface GielinorWrappedConfig extends Config
 		return 6;
 	}
 
-	@ConfigItem(keyName = "deathText", name = "Death captions", description = "Caption under each death. Tokens: {killer} {place} {gpLost} {damage} {world} {date} {time}", section = deaths, position = 2)
+	@ConfigItem(keyName = "deathText", name = "Death captions", description = "Caption under each death. Tokens: {killer} {place} {gpLost} {damage} {world} {date} {time} {milestone} {gear} {topLoss}", section = deaths, position = 2)
 	default String deathText()
 	{
 		return "{killer} · {date}";
@@ -1176,6 +1181,12 @@ public interface GielinorWrappedConfig extends Config
 
 	@ConfigItem(keyName = "deathReplays", name = "Use replays", description = "Keep Death Recap's replay GIFs and use them as the clip for deaths that weren't recorded", section = deaths, position = 3)
 	default boolean deathReplays()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "deathGear", name = "Show gear", description = "Icons of what you were wearing under each death in the deaths scene (needs Death Recap's gear data)", section = deaths, position = 4)
+	default boolean deathGear()
 	{
 		return true;
 	}
@@ -1230,6 +1241,30 @@ public interface GielinorWrappedConfig extends Config
 
 	@ConfigItem(keyName = "versusScene", name = "Friend duel", description = "You vs the friend picked in the panel, from their friend file", section = extras, position = 8)
 	default boolean versusScene()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "questScene", name = "Quests", description = "How many quests you finished, with the latest ones", section = extras, position = 9)
+	default boolean questScene()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "petScene", name = "Pets & rare drops", description = "Pets you got and your most valuable drops", section = extras, position = 10)
+	default boolean petScene()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "clueScene", name = "Clue scrolls", description = "Clues completed, broken down by tier", section = extras, position = 11)
+	default boolean clueScene()
+	{
+		return true;
+	}
+
+	@ConfigItem(keyName = "recordsScene", name = "Personal records", description = "Your best hour of XP, longest session and best XP day", section = extras, position = 12)
+	default boolean recordsScene()
 	{
 		return true;
 	}

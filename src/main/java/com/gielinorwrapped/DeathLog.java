@@ -9,6 +9,7 @@ import java.io.Reader;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,14 @@ final class DeathLog
 		String replay;
 		/** Replay frame times in ms relative to {@link #recapTime}. */
 		int[] replayTimes;
+		/** The bridge version Death Recap sent this death with; 0 for deaths logged before versions were kept. */
+		int recapVersion;
+		/** Death Recap's milestones for this death, such as "10th death"; null when there are none. */
+		List<String> milestones;
+		/** What was worn, in equipment slot order; null when Death Recap didn't send it. */
+		List<Item> gear;
+		/** The costliest items lost, most valuable first; null when not known. */
+		List<Item> lost;
 
 		boolean fromRecap()
 		{
@@ -51,10 +60,28 @@ final class DeathLog
 		}
 	}
 
+	/** A worn or lost item: its id (0 if not known), equipment slot (-1 if not known), name and gp value. */
+	static final class Item
+	{
+		int id;
+		int slot = -1;
+		String name;
+		long value;
+
+		Item(int id, int slot, String name, long value)
+		{
+			this.id = id;
+			this.slot = slot;
+			this.name = name;
+			this.value = value;
+		}
+	}
+
 	/** One death sent by Death Recap, read from its plugin message. */
 	static final class Recap
 	{
 		long account = -1;
+		int version = 1;
 		long time;
 		int world;
 		String killer;
@@ -65,6 +92,9 @@ final class DeathLog
 		byte[] shot;
 		byte[] replay;
 		int[] replayTimes;
+		List<String> milestones;
+		List<Item> gear;
+		List<Item> lost;
 
 		/** Copies the message data, or returns null if it isn't a usable death. */
 		static Recap from(Map<String, Object> data)
@@ -80,6 +110,7 @@ final class DeathLog
 			{
 				return null;
 			}
+			r.version = (int) number(data.get("version"), 1);
 			r.world = (int) number(data.get("world"), 0);
 			r.killer = text(data.get("killer"));
 			r.place = text(data.get("place"));
@@ -97,7 +128,51 @@ final class DeathLog
 			{
 				r.replay = null;
 			}
+			Object milestones = data.get("milestones");
+			if (milestones instanceof String[])
+			{
+				r.milestones = new ArrayList<>();
+				for (String m : (String[]) milestones)
+				{
+					if (m != null && !m.isEmpty())
+					{
+						r.milestones.add(m);
+					}
+				}
+			}
+			r.gear = items(data.get("gearIds"), data.get("gearSlots"), data.get("gearNames"), data.get("gearValues"));
+			if (r.gear != null)
+			{
+				r.gear.sort(Comparator.comparingInt(i -> i.slot < 0 ? Integer.MAX_VALUE : i.slot));
+			}
+			r.lost = items(null, null, data.get("lostNames"), data.get("lostValues"));
 			return r;
+		}
+
+		/** Parallel arrays as items; names and values must match in length, ids and slots are optional. */
+		private static List<Item> items(Object ids, Object slots, Object names, Object values)
+		{
+			if (!(names instanceof String[]) || !(values instanceof long[]))
+			{
+				return null;
+			}
+			String[] n = (String[]) names;
+			long[] v = (long[]) values;
+			int[] id = ids instanceof int[] && ((int[]) ids).length == n.length ? (int[]) ids : null;
+			int[] slot = slots instanceof int[] && ((int[]) slots).length == n.length ? (int[]) slots : null;
+			if (n.length != v.length || n.length == 0)
+			{
+				return null;
+			}
+			List<Item> out = new ArrayList<>();
+			for (int i = 0; i < n.length; i++)
+			{
+				if (n[i] != null && !n[i].isEmpty())
+				{
+					out.add(new Item(id == null ? 0 : id[i], slot == null ? -1 : slot[i], n[i], Math.max(0, v[i])));
+				}
+			}
+			return out.isEmpty() ? null : out;
 		}
 
 		private static long number(Object v, long fallback)
@@ -114,6 +189,42 @@ final class DeathLog
 		{
 			return v instanceof byte[] && ((byte[]) v).length > 0 ? ((byte[]) v).clone() : null;
 		}
+	}
+
+	/** Headline numbers of a list of deaths for the death log. */
+	static final class Summary
+	{
+		/** Whoever killed you most often, or null when no killer is known or none did it twice. */
+		String deadliest;
+		int deadliestCount;
+		/** The death that cost the most gp, or null when no death lost anything. */
+		Entry costliest;
+	}
+
+	static Summary summarize(List<Entry> list)
+	{
+		Summary s = new Summary();
+		Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+		for (Entry e : list)
+		{
+			if (e.killer != null && !e.killer.isEmpty())
+			{
+				counts.merge(e.killer, 1, Integer::sum);
+			}
+			if (e.gpLost > 0 && (s.costliest == null || e.gpLost > s.costliest.gpLost))
+			{
+				s.costliest = e;
+			}
+		}
+		for (Map.Entry<String, Integer> c : counts.entrySet())
+		{
+			if (c.getValue() >= 2 && c.getValue() > s.deadliestCount)
+			{
+				s.deadliest = c.getKey();
+				s.deadliestCount = c.getValue();
+			}
+		}
+		return s;
 	}
 
 	private final StatsStore store;
@@ -170,10 +281,14 @@ final class DeathLog
 		return out;
 	}
 
-	/** Death Recap timestamps already logged, so it only sends the rest. */
-	long[] recapTimes(long account)
+	/**
+	 * Death Recap timestamps already logged, so it only sends the rest. Deaths logged from an older bridge
+	 * version than {@code version} are left out, so Death Recap sends them again with the newer data.
+	 */
+	long[] recapTimes(long account, int version)
 	{
-		return list(account).stream().filter(Entry::fromRecap).mapToLong(e -> e.recapTime).toArray();
+		return list(account).stream().filter(e -> e.fromRecap() && Math.max(1, e.recapVersion) >= version)
+			.mapToLong(e -> e.recapTime).toArray();
 	}
 
 	/** Logs a death this plugin saw. Returns the entry, which may be one Death Recap already sent. */
@@ -216,6 +331,13 @@ final class DeathLog
 			list.add(e);
 		}
 		e.recapTime = r.time;
+		e.recapVersion = Math.max(e.recapVersion, r.version);
+		if (r.version >= 2)
+		{
+			e.milestones = r.milestones;
+			e.gear = r.gear;
+			e.lost = r.lost;
+		}
 		if (r.world != 0)
 		{
 			e.world = r.world;

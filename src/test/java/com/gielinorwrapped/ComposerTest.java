@@ -369,6 +369,60 @@ public class ComposerTest
 	}
 
 	@Test
+	public void pipelineKeepsFrameOrderAndCopiesPixels() throws IOException
+	{
+		List<Integer> seen = new ArrayList<>();
+		List<Boolean> keys = new ArrayList<>();
+		try (Composer.Pipeline pipe = new Composer.Pipeline(4, (px, key) ->
+		{
+			seen.add(px[0]);
+			keys.add(key);
+		}))
+		{
+			int[] frame = new int[4];
+			for (int i = 0; i < 50; i++)
+			{
+				frame[0] = i;
+				pipe.accept(frame, i % 10 == 0);
+			}
+			pipe.finish();
+		}
+		assertEquals(50, seen.size());
+		for (int i = 0; i < 50; i++)
+		{
+			assertEquals(i, (int) seen.get(i));
+			assertEquals(i % 10 == 0, keys.get(i));
+		}
+	}
+
+	@Test
+	public void pipelinePassesEncoderFailuresBack() throws IOException
+	{
+		IOException thrown = null;
+		Composer.Pipeline pipe = new Composer.Pipeline(4, (px, key) ->
+		{
+			throw new IOException("disk full");
+		});
+		try
+		{
+			for (int i = 0; i < 100; i++)
+			{
+				pipe.accept(new int[4], false);
+			}
+			pipe.finish();
+		}
+		catch (IOException e)
+		{
+			thrown = e;
+		}
+		finally
+		{
+			pipe.close();
+		}
+		assertEquals("disk full", thrown == null ? null : thrown.getMessage());
+	}
+
+	@Test
 	public void rateControlStaysInRange()
 	{
 		int[] first = new int[300];

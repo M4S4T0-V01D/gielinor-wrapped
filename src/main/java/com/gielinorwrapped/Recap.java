@@ -231,6 +231,12 @@ final class Recap
 	final List<Entry> regions;
 	/** Collection log slots and pets, oldest first. */
 	final List<Moment> collection;
+	/** Quests finished, oldest first. */
+	final List<Moment> quests;
+	/** Pet drops, oldest first. */
+	final List<Moment> pets;
+	/** Clues per tier, easiest tier first; tiers with none are left out. */
+	final List<Entry> clueTiers;
 	final int combatTasks;
 	final int diaryTasks;
 	final List<DayRecord.Trade> trades;
@@ -340,6 +346,8 @@ final class Recap
 		Collections.reverse(fastest);
 		regions = rank(total.regions);
 		List<Moment> slots = new ArrayList<>();
+		List<Moment> questList = new ArrayList<>();
+		List<Moment> petList = new ArrayList<>();
 		int tasks = 0;
 		int diaries = 0;
 		for (Moment m : total.moments)
@@ -347,6 +355,14 @@ final class Recap
 			if (m.type == Moment.Type.COLLECTION_LOG || m.type == Moment.Type.PET)
 			{
 				slots.add(m);
+				if (m.type == Moment.Type.PET)
+				{
+					petList.add(m);
+				}
+			}
+			else if (m.type == Moment.Type.QUEST)
+			{
+				questList.add(m);
 			}
 			else if (m.type == Moment.Type.COMBAT_TASK)
 			{
@@ -359,6 +375,11 @@ final class Recap
 		}
 		slots.sort((a, b) -> Long.compare(a.time, b.time));
 		collection = slots;
+		questList.sort((a, b) -> Long.compare(a.time, b.time));
+		quests = questList;
+		petList.sort((a, b) -> Long.compare(a.time, b.time));
+		pets = petList;
+		clueTiers = clueTiers(total.clues);
 		combatTasks = tasks;
 		diaryTasks = diaries;
 		trades = new ArrayList<>(total.trades);
@@ -590,6 +611,30 @@ final class Recap
 		return new Recap(period, player, days, previous);
 	}
 
+	static final List<String> CLUE_TIERS = Arrays.asList("beginner", "easy", "medium", "hard", "elite", "master");
+
+	/** Clue counts in tier order, with any unknown tier name after the known ones. */
+	static List<Entry> clueTiers(Map<String, Integer> clues)
+	{
+		List<Entry> out = new ArrayList<>();
+		for (String tier : CLUE_TIERS)
+		{
+			Integer n = clues.get(tier);
+			if (n != null && n > 0)
+			{
+				out.add(new Entry(tier, n));
+			}
+		}
+		for (Entry e : rank(clues))
+		{
+			if (!CLUE_TIERS.contains(e.name))
+			{
+				out.add(e);
+			}
+		}
+		return out;
+	}
+
 	static <N extends Number> List<Entry> rank(Map<String, N> map)
 	{
 		List<Entry> out = new ArrayList<>();
@@ -770,6 +815,10 @@ final class Recap
 		t.put("geNet", (total.geNet() > 0 ? "+" : "") + gp(total.geNet()));
 		t.put("topTrade", trades.isEmpty() ? "none yet" : trades.get(0).name);
 		t.put("collectionSlots", Integer.toString(collection.size()));
+		t.put("quests", Integer.toString(quests.size()));
+		t.put("pets", Integer.toString(pets.size()));
+		t.put("bestHourXp", number(total.bestHourXp));
+		t.put("longestSession", duration(total.longestSession));
 		t.put("combatTasks", Integer.toString(combatTasks));
 		t.put("diaryTasks", Integer.toString(diaryTasks));
 		t.put("pace", paces.isEmpty() ? "" : paces.get(0).line());
