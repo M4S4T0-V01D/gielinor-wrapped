@@ -286,6 +286,16 @@ public class DayRecord
 			moments = new ArrayList<>();
 		}
 		moments.removeIf(m -> m == null || m.type == null);
+		// Older versions counted agility laps as kills.
+		killCounts.keySet().removeIf(ChatParser::isCourse);
+		moments.removeIf(m -> m.type == Moment.Type.KILL_COUNT && m.detail != null && m.detail.startsWith("Kill count") && ChatParser.isCourse(m.title));
+		for (Moment m : moments)
+		{
+			if (m.type == Moment.Type.PERSONAL_BEST && m.title != null && m.title.endsWith(" PB") && !m.title.endsWith(" lap PB") && ChatParser.isCourse(m.title))
+			{
+				m.title = m.title.substring(0, m.title.length() - 3) + " lap PB";
+			}
+		}
 		if (regions == null)
 		{
 			regions = new LinkedHashMap<>();
@@ -302,6 +312,8 @@ public class DayRecord
 		{
 			bossKills = new LinkedHashMap<>();
 		}
+		bossKills.keySet().removeIf(ChatParser::isCourse);
+		fastest.keySet().removeIf(ChatParser::isCourse);
 		if (trades == null)
 		{
 			trades = new ArrayList<>();

@@ -18,7 +18,11 @@ final class ChatParser
 		PERSONAL_BEST,
 		/** A kill time that isn't a personal best. */
 		DURATION,
-		SLAYER_TASK
+		SLAYER_TASK,
+		/** An agility course lap count; not a kill. */
+		LAP_COUNT,
+		/** An agility lap time; the detail is set only for a personal best. */
+		LAP_TIME
 	}
 
 	static final class Result
@@ -40,7 +44,9 @@ final class ChatParser
 		}
 	}
 
-	private static final Pattern KILL_COUNT = Pattern.compile("Your (?:completed |subdued )?(.+?) (?:kill |success |completion |lap )?count is: ?([\\d,]+)\\.?");
+	private static final Pattern KILL_COUNT = Pattern.compile("Your (?:completed |subdued )?(.+?) (?:kill |success |completion )?count is: ?([\\d,]+)\\.?");
+	private static final Pattern LAP_COUNT = Pattern.compile("Your (.+?) lap count is: ?([\\d,]+)\\.?");
+	private static final Pattern LAP_TIME = Pattern.compile("Lap duration: ([\\d:.]+)( \\(new personal best\\))?.*");
 	private static final Pattern CLUE = Pattern.compile("You have completed ([\\d,]+) (beginner|easy|medium|hard|elite|master) Treasure Trails?\\.?");
 	private static final Pattern PET = Pattern.compile("You (?:have a funny feeling like you(?:'re being| would have been) followed|feel something weird sneaking into your backpack).*");
 	private static final Pattern COLLECTION_LOG = Pattern.compile("New item added to your collection log: (.+)");
@@ -55,13 +61,30 @@ final class ChatParser
 	{
 	}
 
+	/** Whether a name saved as a kill count is really an agility course (older versions counted laps as kills). */
+	static boolean isCourse(String name)
+	{
+		return name != null && (name.contains("Agility") || name.contains("Rooftop") || name.endsWith(" Course")
+			|| name.contains("Pyramid") || name.equals("Barbarian Outpost"));
+	}
+
 	static Result parse(String message)
 	{
 		if (message == null || message.isEmpty())
 		{
 			return null;
 		}
-		Matcher m = KILL_COUNT.matcher(message);
+		Matcher m = LAP_COUNT.matcher(message);
+		if (m.matches())
+		{
+			return new Result(Kind.LAP_COUNT, m.group(1), number(m.group(2)), null);
+		}
+		m = LAP_TIME.matcher(message);
+		if (m.matches())
+		{
+			return new Result(Kind.LAP_TIME, null, seconds(m.group(1)), m.group(2) != null ? m.group(1) : null);
+		}
+		m = KILL_COUNT.matcher(message);
 		if (m.matches())
 		{
 			return new Result(Kind.KILL_COUNT, m.group(1), number(m.group(2)), null);

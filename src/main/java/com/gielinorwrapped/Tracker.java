@@ -62,6 +62,8 @@ class Tracker
 	private long carryMillis;
 	private String lastKcName;
 	private int lastKcTick = -100;
+	private String lastLapName;
+	private int lastLapTick = -100;
 	private Moment lastPet;
 	private int lastPetTick = -100;
 	/** A kill time seen just before its kill-count message, waiting to be credited. */
@@ -491,6 +493,17 @@ class Tracker
 			}
 			case DURATION:
 				killTime(tick - lastKcTick <= PB_KC_TICKS ? lastKcName : null, r.number);
+				break;
+			case LAP_COUNT:
+				lastLapName = r.name;
+				lastLapTick = tick;
+				break;
+			case LAP_TIME:
+				if (r.detail != null)
+				{
+					String course = tick - lastLapTick <= PB_KC_TICKS ? lastLapName : null;
+					moment(Moment.Type.PERSONAL_BEST, course == null ? "New lap personal best" : course + " lap PB", r.detail, r.number, 40);
+				}
 				break;
 			case SLAYER_TASK:
 				today.slayerTasks++;
